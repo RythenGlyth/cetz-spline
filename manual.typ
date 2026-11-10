@@ -876,9 +876,10 @@ spline(sp, stroke: 1.5pt + blue)
 
 These helpers support custom algorithms. All names are exported under `cs`. In the signatures below, `sp` is a spline, `ks` a knot vector, and `d` an absolute distance. Single-cubic evaluators share the arguments `(s, e, c1, c2, u)`, abbreviated as `..args` in these reference cards. `..options` denotes the named options described in the card.
 
-#let helper-card(title, signatures, description) = block(
+#let helper-card(title, signatures, description) = (height: auto) => block(
   breakable: false,
   width: 100%,
+  height: height,
   inset: 9pt,
   radius: 3pt,
   stroke: 0.5pt + luma(200),
@@ -892,9 +893,20 @@ These helpers support custom algorithms. All names are exported under `cs`. In t
   #text(size: 8.6pt)[#description]
 ]
 
-#grid(
-  columns: (1fr, 1fr),
-  gutter: 10pt,
+// Measure at the actual column width, then give both cards in each row
+// the taller card's height. Relative heights cannot size an auto grid row.
+#let helper-grid(..cards) = layout(size => {
+  let gutter = 10pt
+  let card-width = (size.width - gutter) / 2
+  let cells = ()
+  for row in cards.pos().chunks(2) {
+    let height = calc.max(..row.map(card => measure(card(), width: card-width).height))
+    cells += row.map(card => card(height: height))
+  }
+  grid(columns: (1fr, 1fr), gutter: gutter, ..cells)
+})
+
+#helper-grid(
   helper-card("Spline records", "make-spline(..fields)\nis-spline(value)\nassert-spline(value, name: \"spline\")", [Construct a record, test its package marker, or assert that marker. Field defaults are listed in the mathematical notes. Custom geometry is the caller's responsibility.]),
   helper-card("Coordinates and segments", "clean-point(pt)\nclean-points(pts)\nsegment-count(sp)\nget-segment(sp, idx)", [Convert numeric points to 2D floating-point tuples, count segments, or retrieve a zero-based segment. Extra coordinates are discarded.]),
   helper-card("Cubic position and derivatives", "cubic-point(..args)\ncubic-derivative(..args)\ncubic-second-derivative(..args)\ncubic-split(..args)", [Use the five shared cubic arguments above. The first three evaluate position, velocity, and acceleration. Splitting returns two cubic tuples meeting at `u`.]),
