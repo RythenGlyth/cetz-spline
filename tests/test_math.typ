@@ -195,3 +195,31 @@ Math tests passed!
   let mp-start = spline-eval(mir-pt, 0.0)
   assert(approx-eq(mp-start.at(0), 1.0) and approx-eq(mp-start.at(1), 1.0))
 }
+
+// Test 6: Normal and tangent angle calculation
+#import "../src/core/bezier.typ": spline-normal-angle, spline-tangent-angle, spline-label-anchor
+#import "../src/core/arc_length.typ": spline-normal-angle-at-distance, spline-label-anchor-at-distance
+
+#{
+  // Horizontal line from (0, 0) to (10, 0)
+  let pts = ((0.0, 0.0), (5.0, 0.0), (10.0, 0.0))
+  let sp = spline-catmull(pts)
+
+  // Tangent points along +x (0deg)
+  let t-ang = spline-tangent-angle(sp, 0.5)
+  assert(approx-eq(t-ang.deg(), 0.0, eps: 1e-4), message: "Tangent angle should be 0deg, got " + repr(t-ang))
+
+  // Normal points along +y (90deg)
+  let n-ang = spline-normal-angle(sp, 0.5)
+  assert(approx-eq(n-ang.deg(), 90.0, eps: 1e-4), message: "Normal angle should be 90deg, got " + repr(n-ang))
+
+  // Outer label anchor is normal-angle + 180deg (270deg or -90deg)
+  let lbl-ang = spline-label-anchor(sp, 0.5)
+  assert(approx-eq(lbl-ang.deg(), 270.0, eps: 1e-4) or approx-eq(lbl-ang.deg(), -90.0, eps: 1e-4),
+    message: "Label anchor should face curve from normal side")
+
+  // At distance 5.0
+  let n-ang-dist = spline-normal-angle-at-distance(sp, 5.0)
+  assert(approx-eq(n-ang-dist.deg(), 90.0, eps: 1e-4))
+}
+

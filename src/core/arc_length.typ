@@ -4,7 +4,17 @@
 
 #import "@preview/cetz:0.5.3": vector, util
 #import "types.typ": assert-spline
-#import "bezier.typ": cubic-derivative, cubic-point, spline-eval, _resolve-spline-t
+#import "bezier.typ": (
+  cubic-derivative,
+  cubic-point,
+  spline-eval,
+  spline-normal,
+  spline-normal-angle,
+  spline-tangent,
+  spline-tangent-angle,
+  spline-label-anchor,
+  _resolve-spline-t,
+)
 
 // Gauss-Legendre 5-point quadrature constants on [-1, 1]
 #let _gl5-roots = (
@@ -258,3 +268,36 @@
   let t = spline-t-for-distance(spline, distance)
   spline-eval(spline, t)
 }
+
+/// Evaluate unit normal vector N at exact arc-length distance `distance`.
+#let spline-normal-at-distance(spline, distance) = {
+  let t = spline-t-for-distance(spline, distance)
+  spline-normal(spline, t)
+}
+
+/// Evaluate unit normal vector direction angle at exact arc-length distance `distance`.
+/// Returns a Typst angle (e.g. `90deg`, `-45deg`).
+#let spline-normal-angle-at-distance(spline, distance) = {
+  let t = spline-t-for-distance(spline, distance)
+  spline-normal-angle(spline, t)
+}
+
+/// Evaluate unit tangent vector T at exact arc-length distance `distance`.
+#let spline-tangent-at-distance(spline, distance) = {
+  let t = spline-t-for-distance(spline, distance)
+  spline-tangent(spline, t)
+}
+
+/// Evaluate unit tangent vector direction angle at exact arc-length distance `distance`.
+#let spline-tangent-angle-at-distance(spline, distance) = {
+  let t = spline-t-for-distance(spline, distance)
+  spline-tangent-angle(spline, t)
+}
+
+/// Compute recommended CeTZ content anchor angle for placing labels along the curve normal
+/// at exact arc-length distance `distance`.
+#let spline-label-anchor-at-distance(spline, distance, side: 1) = {
+  let t = spline-t-for-distance(spline, distance)
+  spline-label-anchor(spline, t, side: side)
+}
+

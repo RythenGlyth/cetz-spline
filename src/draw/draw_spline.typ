@@ -1,5 +1,5 @@
 // cetz-spline: draw_spline.typ
-// CeTZ canvas element wrapper for splines with anchor injection.
+// CeTZ canvas element wrapper for splines with dynamic anchor resolution.
 
 #import "@preview/cetz:0.5.3"
 #import "../core/types.typ": assert-spline, is-spline
@@ -7,14 +7,30 @@
 #import "../core/bezier.typ": spline-eval
 #import "../core/arc_length.typ": spline-arc-length, spline-point-at-distance
 
-/// Draw a spline in a CeTZ canvas with automatic anchor registration.
+/// Private helper: safely parse a string as a float, returning none on failure.
+#let _parse-float-or-none(str-val) = {
+  let s = str-val.trim()
+  if s.ends-with("%") { s = s.slice(0, -1).trim() }
+  if s.len() == 0 { return none }
+  let allowed = "0123456789.-+eE"
+  for c in s {
+    if not allowed.contains(c) { return none }
+  }
+  let dots = 0
+  for c in s { if c == "." { dots += 1 } }
+  if dots > 1 { return none }
+  float(s)
+}
+
+/// Draw a spline in a CeTZ canvas with dynamic anchor resolution.
 ///
-/// Anchors registered:
-/// - `"start"`, `"end"`, `"mid"`
+/// Anchors supported dynamically:
+/// - `"start"`, `"end"`, `"mid"`, `"default"`
 /// - `"pt-<idx>"`: Original control points or segment endpoints
-/// - `"t(0%)"` .. `"t(100%)"`, `"t(50%)"`, etc.
-/// - `"s(0%)"` .. `"s(100%)"`, `"s(50%)"`, etc. (exact arc-length positions)
-/// - `"50%"`, `"25%"`, `"75%"`, etc.
+/// - `"t(<val>)"`: Normalized parameter space position (e.g. `"t(0.5)"`, `"t(50%)"`, `"t(33.3%)"`)
+/// - `"s(<val>)"`: Exact physical arc length position via Gauss-Legendre quadrature (e.g. `"s(0.5)"`, `"s(50%)"`)
+/// - `"50%"`, `"25%"`, `"75%"`: Shorthand percentage anchors
+/// - `"t-50"`, `"s-50"`, `"t-0_5"`, `"s-0_5"`: Alternate dash-syntax anchors
 ///
 /// - spline-obj (spline, array): Spline object or array of interpolation points
 /// - name (str, none): Element name for anchor resolution
@@ -44,7 +60,119 @@
   let n-segs = sp.segments.len()
   assert(n-segs > 0, message: "Cannot draw spline with 0 segments")
 
-  let body = {
+  if name != none {
+    // 1. Create the internal group and get its state callback
+    let (callback,) = group(name: name, {
+      merge-path(
+        close: is-closed,
+        stroke: stroke,
+        fill: fill,
+        mark: mark,
+        ..style.named(),
+        {
+          for seg in sp.segments {
+            bezier(seg.at(0), seg.at(1), seg.at(2), seg.at(3))
+          }
+        }
+      )
+
+      // Pre-register fundamental static anchors
+      let p-start = sp.segments.first().first()
+      let p-end = sp.segments.last().at(1)
+      let p-mid = spline-eval(sp, 0.5)
+
+      anchor("start", p-start)
+      anchor("end", p-end)
+      anchor("mid", p-mid)
+      anchor("default", p-start)
+
+      if sp.pts.len() > 0 {
+        for (i, pt) in sp.pts.enumerate() {
+          anchor("pt-" + str(i), pt)
+        }
+      } else {
+        anchor("pt-0", p-start)
+        for (i, seg) in sp.segments.enumerate() {
+          anchor("pt-" + str(i + 1), seg.at(1))
+        }
+      }
+    })
+
+    let total-l = spline-arc-length(sp)
+
+    // 2. Intercept context layout to dynamically resolve requested anchors on the fly
+    ((ctx => {
+      let grp = callback(ctx)
+      let old-anchors = grp.anchors
+
+      let resolve-anchor(key) = {
+        let k-str = if type(key) == array { key.join(".") } else { str(key) }
+
+        // 1. Parameter space: t(...) e.g. "t(50%)", "t(0.5)", "t(33.3%)"
+        if k-str.starts-with("t(") and k-str.ends-with(")") {
+          let inner = k-str.slice(2, -1)
+          let is-pct = inner.trim().ends-with("%")
+          let v = _parse-float-or-none(inner)
+          if v != none {
+            let t = if is-pct or v > 1.0 { v / 100.0 } else { v }
+            let p = spline-eval(sp, calc.clamp(t, 0.0, 1.0))
+            return (float(p.at(0)), float(p.at(1)), 0.0)
+          }
+        }
+
+        // 2. Arc length space: s(...) e.g. "s(50%)", "s(0.5)", "s(75%)"
+        if k-str.starts-with("s(") and k-str.ends-with(")") {
+          let inner = k-str.slice(2, -1)
+          let is-pct = inner.trim().ends-with("%")
+          let v = _parse-float-or-none(inner)
+          if v != none {
+            let ratio = if is-pct or v > 1.0 { v / 100.0 } else { v }
+            let dist = calc.clamp(ratio, 0.0, 1.0) * total-l
+            let p = spline-point-at-distance(sp, dist)
+            return (float(p.at(0)), float(p.at(1)), 0.0)
+          }
+        }
+
+        // 3. Dashed syntax: t-50, t-50%, t-0_5, s-50, s-50%, s-0_5
+        if k-str.starts-with("t-") {
+          let inner = k-str.slice(2).replace("_", ".")
+          let is-pct = inner.trim().ends-with("%")
+          let v = _parse-float-or-none(inner)
+          if v != none {
+            let t = if is-pct or v > 1.0 { v / 100.0 } else { v }
+            let p = spline-eval(sp, calc.clamp(t, 0.0, 1.0))
+            return (float(p.at(0)), float(p.at(1)), 0.0)
+          }
+        }
+
+        if k-str.starts-with("s-") {
+          let inner = k-str.slice(2).replace("_", ".")
+          let is-pct = inner.trim().ends-with("%")
+          let v = _parse-float-or-none(inner)
+          if v != none {
+            let ratio = if is-pct or v > 1.0 { v / 100.0 } else { v }
+            let dist = calc.clamp(ratio, 0.0, 1.0) * total-l
+            let p = spline-point-at-distance(sp, dist)
+            return (float(p.at(0)), float(p.at(1)), 0.0)
+          }
+        }
+
+        // 4. Bare percentage: e.g. "50%", "33.3%"
+        if k-str.ends-with("%") {
+          let v = _parse-float-or-none(k-str)
+          if v != none {
+            let p = spline-eval(sp, calc.clamp(v / 100.0, 0.0, 1.0))
+            return (float(p.at(0)), float(p.at(1)), 0.0)
+          }
+        }
+
+        // Fallback to static group anchors (start, end, mid, default, pt-0, pt-1, etc.)
+        return old-anchors(key)
+      }
+
+      return grp + (anchors: resolve-anchor)
+    }),)
+  } else {
     merge-path(
       close: is-closed,
       stroke: stroke,
@@ -57,87 +185,5 @@
         }
       }
     )
-
-    if name != none {
-      // 1. Endpoint & mid anchors
-      let p-start = sp.segments.first().first()
-      let p-end = sp.segments.last().at(1)
-      let p-mid = spline-eval(sp, 0.5)
-
-      anchor("start", p-start)
-      anchor("end", p-end)
-      anchor("mid", p-mid)
-      anchor("default", p-start)
-
-      // 2. Control point anchors: pt-<idx>
-      if sp.pts.len() > 0 {
-        for (i, pt) in sp.pts.enumerate() {
-          anchor("pt-" + str(i), pt)
-        }
-      } else {
-        // If pts is empty, use segment endpoints
-        anchor("pt-0", sp.segments.first().first())
-        for (i, seg) in sp.segments.enumerate() {
-          anchor("pt-" + str(i + 1), seg.at(1))
-        }
-      }
-
-      // 3. Normalized parameter anchors: t(X%), s(X%), X%, t-X, s-X
-      let total-l = spline-arc-length(sp)
-      let ratios = (
-        (0.00, "0%", "0"),
-        (0.05, "5%", "5"),
-        (0.10, "10%", "10"),
-        (0.15, "15%", "15"),
-        (0.20, "20%", "20"),
-        (0.25, "25%", "25"),
-        (0.30, "30%", "30"),
-        (0.3333, "33%", "33"),
-        (0.35, "35%", "35"),
-        (0.40, "40%", "40"),
-        (0.45, "45%", "45"),
-        (0.50, "50%", "50"),
-        (0.55, "55%", "55"),
-        (0.60, "60%", "60"),
-        (0.65, "65%", "65"),
-        (0.6667, "67%", "67"),
-        (0.70, "70%", "70"),
-        (0.75, "75%", "75"),
-        (0.80, "80%", "80"),
-        (0.85, "85%", "85"),
-        (0.90, "90%", "90"),
-        (0.95, "95%", "95"),
-        (1.00, "100%", "100"),
-      )
-
-      for (r, r-str, r-num) in ratios {
-        let pt-t = spline-eval(sp, r)
-        let pt-s = if total-l > 1e-9 {
-          spline-point-at-distance(sp, r * total-l)
-        } else {
-          pt-t
-        }
-
-        anchor("t(" + r-str + ")", pt-t)
-        anchor("s(" + r-str + ")", pt-s)
-        anchor(r-str, pt-t)
-        anchor("t-" + r-num, pt-t)
-        anchor("s-" + r-num, pt-s)
-      }
-
-      // Decimal notation convenience: t-0_5, s-0_5
-      anchor("t-0_5", p-mid)
-      anchor("s-0_5", if total-l > 1e-9 { spline-point-at-distance(sp, 0.5 * total-l) } else { p-mid })
-      anchor("t-0_25", spline-eval(sp, 0.25))
-      anchor("s-0_25", if total-l > 1e-9 { spline-point-at-distance(sp, 0.25 * total-l) } else { spline-eval(sp, 0.25) })
-      anchor("t-0_75", spline-eval(sp, 0.75))
-      anchor("s-0_75", if total-l > 1e-9 { spline-point-at-distance(sp, 0.75 * total-l) } else { spline-eval(sp, 0.75) })
-    }
-  }
-
-  if name != none {
-    group(name: name, body)
-  } else {
-    body
   }
 }

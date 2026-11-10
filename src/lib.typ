@@ -19,6 +19,8 @@
   cubic-tangent,
   cubic-normal,
   cubic-curvature,
+  cubic-normal-angle,
+  cubic-tangent-angle,
   cubic-split,
   spline-eval,
   spline-derivative,
@@ -26,6 +28,9 @@
   spline-tangent,
   spline-normal,
   spline-curvature,
+  spline-normal-angle,
+  spline-tangent-angle,
+  spline-label-anchor,
 )
 
 #import "core/catmull_rom.typ": (
@@ -50,6 +55,11 @@
   spline-arc-length,
   spline-t-for-distance,
   spline-point-at-distance,
+  spline-normal-at-distance,
+  spline-normal-angle-at-distance,
+  spline-tangent-at-distance,
+  spline-tangent-angle-at-distance,
+  spline-label-anchor-at-distance,
 )
 
 #import "core/ops.typ": (

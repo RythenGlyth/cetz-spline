@@ -451,6 +451,31 @@ spline(sp, stroke: 2pt + teal)
   [Computes signed scalar curvature $kappa(t) = frac(x' y'' - y' x'', (x'^2 + y'^2)^(3/2))$.],
 )
 
+#fn-doc(
+  "spline-normal-angle",
+  args: (("spline", "spline"), ("t", "float")),
+  ret: "angle",
+  [Computes the direction angle of the unit normal vector $bold(N)(t)$ as a Typst `angle` (e.g. `90deg`, `-45deg`). Ideal for orienting perpendicular annotations, ticks, and CeTZ label anchors.],
+)
+
+#fn-doc(
+  "spline-tangent-angle",
+  args: (("spline", "spline"), ("t", "float")),
+  ret: "angle",
+  [Computes the direction angle of the unit tangent vector $bold(T)(t)$ as a Typst `angle`. Useful for vehicle heading, arrow alignment, and flow orientations.],
+)
+
+#fn-doc(
+  "spline-label-anchor",
+  args: (
+    ("spline", "spline"),
+    ("t", "float"),
+    ("side", "int", 1),
+  ),
+  ret: "angle",
+  [Computes the optimal CeTZ `content` anchor angle to position text cleanly along the curve normal without colliding with the stroke. If `side` is 1 (default), returns `spline-normal-angle + 180deg` (places text on the outer normal side). If `side` is -1, returns `spline-normal-angle` (places text on the inner side).],
+)
+
 == Arc Length & Inversion
 
 #fn-doc(
@@ -638,37 +663,38 @@ spline(sc-dir, stroke: (paint: purple, thickness: 1.2pt, dash: "dashed"))
   [CeTZ canvas drawing element. Accepts either a spline dictionary or an array of points. When a `name` is provided, automatically injects named anchors into CeTZ's coordinate resolution system.],
 )
 
-=== Named Anchors
+=== Dynamic Named Anchors
 
-When a spline element is assigned a `name` (e.g. `spline(sp, name: "my-curve")`), CeTZ provides access to the following anchors via `"my-curve.<anchor>"`:
+When a spline element is assigned a `name` (e.g. `spline(sp, name: "my-curve")`), CeTZ intercepts the coordinate lookup and dynamically evaluates requested anchor queries on the fly without precomputed limits:
 
 #table(
-  columns: (1.4fr, 2.6fr),
+  columns: (1.5fr, 2.5fr),
   stroke: 0.5pt + rgb("#e2e8f0"),
   fill: (col, row) => if row == 0 { rgb("#f1f5f9") } else { none },
   align: (col, row) => if col == 0 { left } else { left },
-  [#text(weight: "bold")[Anchor Name]], [#text(weight: "bold")[Description]],
+  [#text(weight: "bold")[Anchor Pattern]], [#text(weight: "bold")[Description]],
   [`"start"`, `"end"`], [First and last endpoints of the spline.],
   [`"mid"`, `"default"`], [Midpoint evaluated at parameter $t = 0.5$ (`"default"` matches `"start"`).],
   [`"pt-0"`, `"pt-1"`, ...], [Original control points or segment boundary endpoints.],
-  [`"t(0%)"`, `"t(50%)"`, ...], [Normalized parameter space position $t in [0, 1]$ in 5% steps (also `"t-0"`, `"t-50"`, `"t-100"`).],
-  [`"s(0%)"`, `"s(50%)"`, ...], [Normalized physical arc length position $s in [0, 1]$ via Gauss-Legendre quadrature (also `"s-0"`, `"s-50"`, `"s-100"`).],
-  [`"0%"`, `"50%"`, ...], [Shorthand aliases for parameter space positions.],
+  [`"t(<val>)"`], [Dynamic polynomial parameter space position $t in [0, 1]$ or percentage $X\%$ (e.g. `"t(0.42)"`, `"t(50%)"`, `"t(33.3%)"`).],
+  [`"s(<val>)"`], [Dynamic physical arc length position via Gauss-Legendre quadrature (e.g. `"s(0.5)"`, `"s(68.5%)"`, `"s(100%)"`).],
+  [`"<pct>%"`], [Shorthand percentage anchor (e.g. `"25%"`, `"50%"`).],
+  [`"t-<val>"`, `"s-<val>"`], [Alternate dash syntax (e.g. `"t-50"`, `"t-0_5"`, `"s-75"`, `"s-0_75"`).],
 )
 
 ```example
 let sp = cs.spline-catmull(((0, 0), (1.5, 2.5), (3.5, 0.5), (5, 2)))
 spline(sp, name: "c", stroke: 2pt + rgb("#1d3557"))
 
-// Connect to endpoints and control points
+// Attach labels cleanly using curve normal angles
 circle("c.start", radius: 0.12, fill: rgb("#0284c7"))
-content((rel: (-0.3, -0.3), to: "c.start"), text(size: 7.5pt, weight: "bold", fill: rgb("#0284c7"))["start"])
+content("c.start", text(size: 7.5pt, weight: "bold", fill: rgb("#0284c7"))["start"], anchor: cs.spline-label-anchor(sp, 0.0), padding: 0.15)
 
 circle("c.mid", radius: 0.12, fill: rgb("#7c3aed"))
-content((rel: (0, 0.35), to: "c.mid"), text(size: 7.5pt, weight: "bold", fill: rgb("#7c3aed"))["mid"])
+content("c.mid", text(size: 7.5pt, weight: "bold", fill: rgb("#7c3aed"))["mid"], anchor: cs.spline-label-anchor(sp, 0.5), padding: 0.15)
 
 circle("c.end", radius: 0.12, fill: rgb("#0284c7"))
-content((rel: (0.3, -0.3), to: "c.end"), text(size: 7.5pt, weight: "bold", fill: rgb("#0284c7"))["end"])
+content("c.end", text(size: 7.5pt, weight: "bold", fill: rgb("#0284c7"))["end"], anchor: cs.spline-label-anchor(sp, 1.0), padding: 0.15)
 
 circle("c.pt-1", radius: 0.08, fill: orange)
 circle("c.pt-2", radius: 0.08, fill: orange)
@@ -681,7 +707,7 @@ A fundamental distinction in differential geometry is the difference between *po
 - *Parameter Space (`"t(X%)"`)*: Evaluates the polynomial parameter $t = X / 100$. Because cubic segments vary in geometric size and knot spans, equal parameter steps do *not* cover equal physical distances. Points cluster tightly where knot spans are short and spread out on long segments.
 - *Arc-Length Space (`"s(X%)"`)*: Evaluates the exact physical curve distance $s = (X / 100) dot L$ using 5-point Gauss-Legendre numerical quadrature with Newton-Raphson root inversion. Equal arc-length steps are physically equidistant along the curve.
 
-The example below demonstrates this divergence on an asymmetric spline. Notice the dashed alignment chords connecting identical percentage coordinates between parameter space $t$ (red) and physical arc length $s$ (teal):
+The example below demonstrates this divergence on an asymmetric spline. Instead of hardcoded coordinate offsets, labels are positioned cleanly using the curve's normal angle `cs.spline-normal-angle`, which automatically directs text perpendicular to the tangent at any point:
 
 ```example-vertical
 let pts = ((0, 0), (1, 2.8), (2.2, 0.4), (7.5, 2.6))
@@ -691,19 +717,24 @@ spline(sp, name: "asym", stroke: 2.2pt + rgb("#0f172a"))
 
 // Compare t(p%) and s(p%) for 20%, 40%, 60%, 80%
 for p in (20, 40, 60, 80) {
+  let t-val = p / 100.0
   let t-anc = "asym.t(" + str(p) + "%)"
   let s-anc = "asym.s(" + str(p) + "%)"
+
+  let n-ang-t = cs.spline-normal-angle(sp, t-val)
+  let t-at-s = cs.spline-t-for-distance(sp, t-val * cs.spline-arc-length(sp))
+  let n-ang-s = cs.spline-normal-angle(sp, t-at-s)
 
   // Connecting drift chord
   line(t-anc, s-anc, stroke: (paint: gray, thickness: 0.7pt, dash: "dashed"))
 
-  // Parameter marker (red)
+  // Parameter marker (red) positioned along outer normal
   circle(t-anc, radius: 0.09, fill: rgb("#e63946"))
-  content((rel: (0, 0.32), to: t-anc), text(size: 6.5pt, fill: rgb("#e63946"), weight: "bold")[#str(p)% (t)])
+  content(t-anc, text(size: 6.5pt, fill: rgb("#e63946"), weight: "bold")[#str(p)% (t)], anchor: n-ang-t + 180deg, padding: 0.12)
 
-  // Arc-length marker (teal)
+  // Arc-length marker (teal) positioned along inner normal
   circle(s-anc, radius: 0.09, fill: rgb("#059669"))
-  content((rel: (0, -0.32), to: s-anc), text(size: 6.5pt, fill: rgb("#059669"), weight: "bold")[#str(p)% (s)])
+  content(s-anc, text(size: 6.5pt, fill: rgb("#059669"), weight: "bold")[#str(p)% (s)], anchor: n-ang-s, padding: 0.12)
 }
 
 // Legend
@@ -826,10 +857,10 @@ line("suction.start", "suction.end", stroke: (paint: gray, thickness: 0.6pt, das
 
 // Annotations
 circle("suction.start", radius: 0.08, fill: rgb("#0284c7"))
-content((rel: (-0.6, 0.25), to: "suction.start"), text(size: 7pt, weight: "bold")[Leading Edge])
+content("suction.start", text(size: 7pt, weight: "bold")[Leading Edge], anchor: 45deg, padding: 0.15)
 
 circle("suction.end", radius: 0.08, fill: rgb("#0284c7"))
-content((rel: (0.7, 0.25), to: "suction.end"), text(size: 7pt, weight: "bold")[Trailing Edge])
+content("suction.end", text(size: 7pt, weight: "bold")[Trailing Edge], anchor: 135deg, padding: 0.15)
 ```
 
 #pagebreak()
@@ -856,15 +887,15 @@ spline(inner-kerb, stroke: 1.8pt + rgb("#334155"))
 // Tangent vectors showing vehicle heading
 draw-tangents(racing-line, samples: 7, scale: 0.7, stroke: 1.2pt + rgb("#0284c7"))
 
-// Arc-length key positions
+// Arc-length key positions oriented along curve normals
 circle("race.s(20%)", radius: 0.1, fill: rgb("#f59e0b"))
-content((rel: (0, 0.35), to: "race.s(20%)"), text(size: 6.5pt, weight: "bold", fill: rgb("#b45309"))[Braking Zone (s = 20%)])
+content("race.s(20%)", text(size: 6.5pt, weight: "bold", fill: rgb("#b45309"))[Braking Zone (s = 20%)], anchor: cs.spline-label-anchor(racing-line, 0.2), padding: 0.12)
 
 circle("race.s(50%)", radius: 0.12, fill: rgb("#10b981"))
-content((rel: (0, -0.38), to: "race.s(50%)"), text(size: 7pt, weight: "bold", fill: rgb("#047857"))[Corner Apex (s = 50%)])
+content("race.s(50%)", text(size: 7pt, weight: "bold", fill: rgb("#047857"))[Corner Apex (s = 50%)], anchor: cs.spline-label-anchor(racing-line, 0.5, side: -1), padding: 0.15)
 
 circle("race.s(80%)", radius: 0.1, fill: rgb("#3b82f6"))
-content((rel: (0, 0.35), to: "race.s(80%)"), text(size: 6.5pt, weight: "bold", fill: rgb("#1d4ed8"))[Exit Throttle (s = 80%)])
+content("race.s(80%)", text(size: 6.5pt, weight: "bold", fill: rgb("#1d4ed8"))[Exit Throttle (s = 80%)], anchor: cs.spline-label-anchor(racing-line, 0.8), padding: 0.12)
 ```
 
 #pagebreak()
@@ -898,7 +929,7 @@ circle((0, 0), radius: 0.6, stroke: (paint: gray, thickness: 0.7pt, dash: "dashe
 let follower-contact = "cam-body.s(15%)"
 circle(follower-contact, radius: 0.08, fill: rgb("#0284c7"))
 line((0, 0), follower-contact, stroke: 0.6pt + rgb("#94a3b8"))
-content((rel: (0.4, 0.5), to: follower-contact), text(size: 7pt, weight: "bold", fill: rgb("#0284c7"))[Follower Contact])
+content(follower-contact, text(size: 7pt, weight: "bold", fill: rgb("#0284c7"))[Follower Contact], anchor: cs.spline-label-anchor(cam, 0.15), padding: 0.15)
 ```
 
 #pagebreak()

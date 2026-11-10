@@ -157,3 +157,30 @@
   let sc-dir = cs.scale-spline(sp, 1.8, origin: (0.0, 0.0), dir: (1.0, 1.0))
   spline(sc-dir, stroke: (paint: purple, thickness: 1.2pt, dash: "dashed"))
 })
+
+== Test 8: Dynamic Custom Anchors & Normal Angle Label Placement
+
+#cetz.canvas({
+  import cetz.draw: *
+  import cs.draw: *
+
+  let pts = ((0.0, 0.0), (1.5, 3.0), (3.5, 0.5), (6.0, 2.5))
+  let sp = cs.spline-catmull(pts, alpha: 0.5)
+
+  spline(sp, name: "dyn", stroke: 2pt + rgb("#0f172a"))
+
+  // Test dynamic arbitrary floating-point percentage queries
+  circle("dyn.t(0.42)", radius: 0.1, fill: red)
+  circle("dyn.s(68.5%)", radius: 0.1, fill: blue)
+  circle("dyn.33%", radius: 0.08, fill: green)
+  circle("dyn.t-0_75", radius: 0.08, fill: purple)
+
+  // Test normal-angle content anchoring
+  let apex-ang = cs.spline-normal-angle(sp, 0.35)
+  content("dyn.t(0.35)", [Peak], anchor: apex-ang + 180deg, padding: 0.15)
+
+  let dist-mid = 0.5 * cs.spline-arc-length(sp)
+  let s-ang = cs.spline-normal-angle-at-distance(sp, dist-mid)
+  content("dyn.s(50%)", [Mid-S], anchor: s-ang, padding: 0.15)
+})
+

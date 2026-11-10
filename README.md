@@ -65,10 +65,11 @@ Or for local development:
   // Draw main spline with CeTZ named anchors
   spline(sp, name: "my-curve", stroke: 2pt + blue)
 
-  // Access named anchors
+  // Access dynamic named anchors and place labels along the curve normal
   circle("my-curve.pt-1", radius: 0.12, fill: orange)
   circle("my-curve.mid", radius: 0.12, fill: purple)
   circle("my-curve.s(50%)", radius: 0.12, fill: green)
+  content("my-curve.s(50%)", [Midpoint], anchor: cs.spline-label-anchor(sp, 0.5), padding: 0.15)
 })
 ```
 
@@ -80,18 +81,23 @@ Or for local development:
 - `cs.spline-catmull(points, alpha: 0.5, closed: false, boundary: "clamped")`: Creates a generalized Catmull-Rom spline ($\alpha = 0.5$ centripetal, $\alpha = 0.0$ uniform, $\alpha = 1.0$ chordal).
 - `cs.spline-bspline(points, degree: 3, closed: false, knots: none)`: Creates an arbitrary-degree B-spline via Cox-de Boor recursion.
 
-### Analytical Evaluation
+### Analytical Evaluation & Normal Angles
 - `cs.spline-eval(spline, t)`: Point on curve $C(t)$ for $t \in [0, 1]$.
 - `cs.spline-derivative(spline, t)`: Velocity vector $C'(t)$.
 - `cs.spline-second-derivative(spline, t)`: Acceleration vector $C''(t)$.
 - `cs.spline-tangent(spline, t)`: Unit tangent vector $\mathbf{T}(t)$.
 - `cs.spline-normal(spline, t)`: Unit normal vector $\mathbf{N}(t) = (-T_y, T_x)$.
 - `cs.spline-curvature(spline, t)`: Signed curvature $\kappa(t)$.
+- `cs.spline-normal-angle(spline, t)`: Direction angle of the unit normal vector $\mathbf{N}(t)$ as a Typst `angle` (e.g. `90deg`, `-45deg`).
+- `cs.spline-tangent-angle(spline, t)`: Direction angle of the unit tangent vector $\mathbf{T}(t)$ as a Typst `angle`.
+- `cs.spline-label-anchor(spline, t, side: 1)`: Recommended CeTZ `content` anchor angle to place labels along curve normals.
 
 ### Arc Length & Inversion
 - `cs.spline-arc-length(spline, t1: 0.0, t2: 1.0)`: True arc length via 5-point Gauss-Legendre quadrature.
 - `cs.spline-t-for-distance(spline, s)`: Newton-Raphson distance inversion $s \mapsto t$.
 - `cs.spline-point-at-distance(spline, s)`: Point at exact arc-length distance $s$.
+- `cs.spline-normal-angle-at-distance(spline, s)`: Normal vector angle at distance $s$.
+- `cs.spline-label-anchor-at-distance(spline, s, side: 1)`: Recommended CeTZ `content` anchor angle at distance $s$.
 
 ### Transformations & Operations
 - `cs.rotate-spline(spline, angle, origin: (0, 0))`: Rigid rotation around pivot (`origin`), preserving Bézier geometry and arc lengths (aliased as `rotate`).

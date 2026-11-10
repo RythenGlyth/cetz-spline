@@ -53,28 +53,36 @@
     draw-tangents(sp, samples: 7, scale: 0.9, stroke: 1.4pt + rgb("#0284c7"))
 
     // Arc-length callouts at s = 25%, 50%, 75%
-    for (pct, label) in ((25, "s = 25%"), (50, "s = 50%"), (75, "s = 75%")) {
+    for (pct, label, side) in ((25, "s = 25%", -1), (50, "s = 50%", 1), (75, "s = 75%", -1)) {
       let anc = "main-crv.s(" + str(pct) + "%)"
+      let dist = (pct / 100.0) * cs.spline-arc-length(sp)
+      let lbl-anc = cs.spline-label-anchor-at-distance(sp, dist, side: side)
       circle(anc, radius: 0.12, fill: rgb("#10b981"), stroke: 1.5pt + white)
       content(
-        (rel: (0.0, -0.42), to: anc),
+        anc,
         box(fill: rgb("#fffffffa"), outset: 2pt, radius: 2pt, stroke: 0.4pt + rgb("#cbd5e1"))[
           #text(size: 7pt, weight: "bold", fill: rgb("#065f46"))[#label]
-        ]
+        ],
+        anchor: lbl-anc,
+        padding: 0.14,
       )
     }
 
     // Endpoint anchors
     circle("main-crv.start", radius: 0.14, fill: rgb("#0284c7"), stroke: 1.5pt + white)
     content(
-      (rel: (-0.35, -0.35), to: "main-crv.start"),
-      text(size: 8pt, weight: "bold", fill: rgb("#0369a1"))["start"]
+      "main-crv.start",
+      text(size: 8pt, weight: "bold", fill: rgb("#0369a1"))["start"],
+      anchor: 45deg,
+      padding: 0.15,
     )
 
     circle("main-crv.end", radius: 0.14, fill: rgb("#0284c7"), stroke: 1.5pt + white)
     content(
-      (rel: (-0.1, -0.38), to: "main-crv.end"),
-      text(size: 8pt, weight: "bold", fill: rgb("#0369a1"))["end"]
+      "main-crv.end",
+      text(size: 8pt, weight: "bold", fill: rgb("#0369a1"))["end"],
+      anchor: 135deg,
+      padding: 0.15,
     )
   })
 ]

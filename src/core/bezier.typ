@@ -127,3 +127,47 @@
   let seg = spline.segments.at(idx)
   cubic-curvature(seg.at(0), seg.at(1), seg.at(2), seg.at(3), u)
 }
+
+/// Compute normal direction angle of cubic Bézier segment as a Typst angle.
+#let cubic-normal-angle(s, e, c1, c2, u) = {
+  let n = cubic-normal(s, e, c1, c2, u)
+  calc.atan2(n.at(0), n.at(1))
+}
+
+/// Compute tangent direction angle of cubic Bézier segment as a Typst angle.
+#let cubic-tangent-angle(s, e, c1, c2, u) = {
+  let tau = cubic-tangent(s, e, c1, c2, u)
+  calc.atan2(tau.at(0), tau.at(1))
+}
+
+/// Evaluate unit normal vector angle of spline at global parameter t in [0, 1].
+/// Returns a Typst angle (e.g. `90deg`, `-45deg`).
+#let spline-normal-angle(spline, t) = {
+  let n = spline-normal(spline, t)
+  calc.atan2(n.at(0), n.at(1))
+}
+
+/// Evaluate unit tangent vector angle of spline at global parameter t in [0, 1].
+/// Returns a Typst angle (e.g. `0deg`, `45deg`).
+#let spline-tangent-angle(spline, t) = {
+  let tau = spline-tangent(spline, t)
+  calc.atan2(tau.at(0), tau.at(1))
+}
+
+/// Compute recommended CeTZ content anchor angle for placing labels along the curve normal.
+///
+/// If `side` is 1 (default), places the label on the outer normal side.
+/// If `side` is -1, places the label on the inner/opposite side.
+///
+/// Example:
+/// ```typst
+/// content(pos, [Peak], anchor: cs.spline-label-anchor(sp, 0.5), padding: 0.15)
+/// ```
+#let spline-label-anchor(spline, t, side: 1) = {
+  let n-ang = spline-normal-angle(spline, t)
+  if side >= 0 {
+    n-ang + 180deg
+  } else {
+    n-ang
+  }
+}
