@@ -1,0 +1,53 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  versions:
+    name: Discover supported Typst releases
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.versions.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: List every stable release at or above the manifest minimum
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate --slurp 'repos/typst/typst/releases?per_page=100' \
+            | python3 .github/scripts/typst_versions.py >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Typst ${{ matrix.typst }}
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.versions.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: typst-community/setup-typst@v5
+        with:
+          typst-version: ${{ matrix.typst }}
+          allow-prereleases: false
+      - name: Install manual fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes fonts-liberation
+      - name: Run mathematical, integration, rejection, packaging, and documentation tests
+        run: |
+          typst --version
+          bash test.sh

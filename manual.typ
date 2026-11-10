@@ -7,7 +7,7 @@
 
 #set document(
   title: "cetz-spline Manual",
-  author: "Typst Community Contributor",
+  author: "RythenGlyth",
 )
 
 #set page(
@@ -198,7 +198,7 @@
     columns: (auto, auto, auto, auto),
     gutter: 2.2em,
     [#text(weight: "bold")[Version:] 0.1.0],
-    [#text(weight: "bold")[Compiler:] #sym.gt.eq 0.11.0],
+    [#text(weight: "bold")[Compiler:] #sym.gt.eq 0.15.0],
     [#text(weight: "bold")[CeTZ:] 0.5.3],
     [#text(weight: "bold")[License:] MIT],
   )
@@ -218,40 +218,15 @@
 
 CeTZ already includes 2D/3D vector mathematics (`cetz.vector`), basic cubic Bézier evaluation (`cubic-point`, `cubic-derivative`), and de Casteljau curve splitting (`split`). `cetz-spline` directly re-uses those primitives and focuses strictly on higher-order geometric operations that CeTZ does not provide:
 
-- *Centripetal and Chordal Catmull-Rom Parameterization* ($alpha = 0.5, 1.0$): CeTZ only implements uniform Catmull-Rom ($alpha = 0$), which produces self-intersections and loops around sharp corners. Centripetal parameterization mathematically prevents cusps and local self-intersections.
-- *Second Derivatives and Curvature Fields*: Continuous acceleration vectors $C''(u)$, Frenet unit normal fields $bold(N)(u)$, and signed scalar curvature $kappa(u)$.
-- *Arbitrary-Degree B-Splines*: Cox-de Boor recursion with exact conversion to cubic Bézier segments for clamped and periodic knot vectors.
+- *Centripetal and Chordal Catmull-Rom Parameterization* ($alpha = 0.5, 1.0$): CeTZ only implements uniform Catmull-Rom ($alpha = 0$), which produces self-intersections and loops around sharp corners. Centripetal parameterization prevents cusps and self-intersections within regular individual segments.
+- *Second Derivatives and Curvature Fields*: Piecewise acceleration vectors $C''(u)$, oriented left unit normal fields $bold(N)(u)$, and signed scalar curvature $kappa(u)$.
+- *Arbitrary-Degree B-Splines*: Cox-de Boor evaluation with cubic conversion for degrees up to three and cubic approximation for higher degrees.
 - *High-Precision Arc Length*: 5-point Gauss-Legendre numerical quadrature with Newton-Raphson distance inversion ($s |-> t$).
 - *Parallel Offset Curves*: Normal-offset curves $C(u) + d dot bold(N)(u)$ with curvature-scaled tangent matching.
 - *Homotopies and Deformation Vector Fields*: Morphing families $(1-t) A + t B$ and directional deformation vectors connecting curves at equal arc-length fractions.
-- *CAD-Style Geometric Visualizers*: Curvature needles and envelope curves, velocity vectors, normal fields, and control polygons.
+- *CAD-Style Geometric Visualizers*: Curvature needles and envelope curves, unit tangent vectors, normal fields, and control polygons.
 
-== CeTZ Integration Audit
-
-The following table summarizes the boundary between CeTZ core and `cetz-spline`:
-
-#table(
-  columns: (auto, auto, auto, 1fr),
-  stroke: (x, y) => if y == 0 { (bottom: 1pt + black) } else { (bottom: 0.3pt + luma(200)) },
-  fill: (x, y) => if y == 0 { rgb("#f5f5f5") } else { none },
-  inset: (x: 6pt, y: 4.5pt),
-  [#strong[Capability]], [#strong[Origin]], [#strong[Location]], [#strong[Description]],
-  [Vector math], [CeTZ], [`cetz.vector`], [Vector addition, subtraction, scaling, length, dot product.],
-  [Bézier point evaluation], [CeTZ], [`cetz.util.bezier.cubic-point`], [Evaluates $C(u)$ at parameter $u in [0, 1]$.],
-  [Velocity vector], [CeTZ], [`cetz.util.bezier.cubic-derivative`], [Evaluates $C'(u) = frac(d C, d u)$.],
-  [Curve subdivision], [CeTZ], [`cetz.util.bezier.split`], [De Casteljau subdivision at parameter $u$.],
-  [*Second derivative*], [*cetz-spline*], [`cs.cubic-second-derivative`], [Acceleration vector $C''(u) = frac(d^2 C, d u^2)$.],
-  [*Curvature $kappa(u)$*], [*cetz-spline*], [`cs.cubic-curvature`], [Signed scalar curvature $frac(x' y'' - y' x'', (x'^2 + y'^2)^(3/2))$.],
-  [*Frenet normal $bold(N)(u)$*], [*cetz-spline*], [`cs.cubic-normal`], [Unit normal vector field $(-T_y, T_x)$.],
-  [*Centripetal Catmull-Rom*], [*cetz-spline*], [`cs.spline-catmull`], [Yuksel (2011) $alpha = 0.5$ knot allocation; prevents cusps.],
-  [*Arbitrary B-Splines*], [*cetz-spline*], [`cs.spline-bspline`], [Cox-de Boor recursion with exact Bézier decomposition.],
-  [*Arc-length quadrature*], [*cetz-spline*], [`cs.spline-arc-length`], [5-point Gauss-Legendre quadrature for exact curve length.],
-  [*Arc-length inversion*], [*cetz-spline*], [`cs.spline-t-for-distance`], [Newton-Raphson solver for physical distance $s |-> t$.],
-  [*Parallel offset curves*], [*cetz-spline*], [`cs.offset`], [Parallel normal offset with curvature-matched velocity.],
-  [*Affine transforms*], [*cetz-spline*], [`cs.rotate-spline`], [Rotation, translation, directional scaling, and mirroring/reflections.],
-  [*Homotopy morphing*], [*cetz-spline*], [`cs.homotopy`], [Topological loop deformation and intermediate families.],
-  [*Curvature combs*], [*cetz-spline*], [`cs.draw.draw-curvature-comb`], [CAD-style curvature needles with envelope spline.],
-)
+CeTZ supplies the canvas, paths, transforms, and coordinate system. This package adds reusable spline objects, geometric analysis, distance queries, and drawing helpers. Import the package as `cs` to avoid collisions between geometric transformations such as `cs.scale` and CeTZ canvas transformations such as `cetz.draw.scale`.
 
 = Getting Started
 
@@ -281,6 +256,7 @@ content("c.mid", text(size: 8pt, fill: black)[Mid], anchor: "south-west", paddin
 content("c.end", text(size: 8pt, fill: black)[End], anchor: "south-west", padding: 5pt)
 ```
 
+#block(breakable: false)[
 == Named Anchors
 
 When `name: "..."` is passed to `cs.draw.spline`, the following named anchors are injected:
@@ -288,66 +264,76 @@ When `name: "..."` is passed to `cs.draw.spline`, the following named anchors ar
 - `"mid"`: midpoint at global parameter $t = 0.5$
 - `"pt-<idx>"`: original control points (`"pt-0"`, `"pt-1"`, ...)
 - `"t(X%)"`: position at parameter ratio (e.g. `"t(25%)"`, `"t(50%)"`, `"t(75%)"`)
-- `"s(X%)"`: position at exact physical arc-length ratio (e.g. `"s(50%)"`)
+- `"s(X%)"`: position at numerical arc-length ratio (e.g. `"s(50%)"`)
 - `"50%"`, `"25%"`, `"75%"`: standard CeTZ path percentage anchors
 
-= Mathematical Concepts
+]
 
-== Spline Data Representation
+= Practical Guide
 
-Every curve in `cetz-spline` is represented by an immutable dictionary:
+== Choose the Curve for the Task
 
-```typst
-#let make-spline(
-  type: "catmull-rom",       // "catmull-rom" | "bspline" | "homotopy" | "offset"
-  pts: (),                   // Array of original input points
-  closed: false,             // bool
-  meta: (:),                 // Spline parameters (alpha, degree, knots, etc.)
-  segments: (),              // Array of native CeTZ cubic Bézier segments ((s, e, c1, c2), ...)
-  lut: none,                 // Cached arc-length lookup table
-)
+Use `cs.spline-catmull` when the curve must pass through every data point, for example a route or a measured profile. Start with `alpha: 0.5`; `alpha: 0` and `alpha: 1` are useful comparisons, not universal improvements. Use `cs.spline-bspline` when the points should act as a control polygon: interior points generally do not lie on the curve. Open clamped B-splines interpolate their first and last points. Closed curves wrap automatically; do not repeat the first point at the end.
+
+== Interpolation versus Control Points
+
+Both curves below use the same points. Blue interpolates them; orange is pulled towards them. The dashed polygon is the input data, rather than the individual cubic handle polygons.
+
+```example-vertical
+let pts = ((0, 0), (1, 2), (3, -1), (5, 1))
+line(..pts, stroke: (paint: gray, dash: "dashed"))
+spline(cs.spline-catmull(pts), stroke: 1.5pt + blue)
+spline(cs.spline-bspline(pts), stroke: 1.5pt + orange)
+for pt in pts { circle(pt, radius: 0.07, fill: black) }
+content((0, 3), [Blue: interpolation], anchor: "west")
+content((0, 2.5), [Orange: B-spline], anchor: "west")
 ```
 
-Each segment inside `segments` follows CeTZ's standard Bézier tuple:
-$ (bold(s), bold(e), bold(c)_1, bold(c)_2) $
-where $bold(s)$ is the starting point, $bold(e)$ is the end point, and $bold(c)_1, bold(c)_2$ are control handles.
+#block(breakable: false)[
+== Place Markers at Equal Distances
 
-== Centripetal Catmull-Rom Parameterization
+A parameter midpoint is not necessarily halfway along the curve. In the upper row below, equal $t$ steps cluster on the short first segment. In the lower row, equal distance fractions give evenly spaced markers along the same geometry. These are distances along the curve, rather than straight-line distances between markers.
 
-For four consecutive interpolation points $bold(P)_0, bold(P)_1, bold(P)_2, bold(P)_3$, knot intervals are computed as:
-$ t_0 = 0, quad t_(i+1) = t_i + ||bold(P)_(i+1) - bold(P)_i||^alpha $
-where:
-- $alpha = 0.0$: Uniform Catmull-Rom. Susceptible to self-intersections and cusps when distance between adjacent points varies significantly.
-- $alpha = 0.5$: Centripetal Catmull-Rom (default). Proven by Yuksel et al. (2011) to be cusp-free and self-intersection-free within segments.
-- $alpha = 1.0$: Chordal Catmull-Rom. Knots are proportional to Euclidean chord length.
+```example-vertical
+let sp = cs.with-lut(cs.spline-catmull(((0, 0), (0.5, 0), (5, 0))))
+spline(sp, name: "t", stroke: gray)
+let shifted = cs.translate(sp, (0, -0.7))
+spline(shifted, name: "s", stroke: gray)
+for i in range(0, 9) {
+  let pct = str(i * 12.5) + "%"
+  circle("t.t(" + pct + ")", radius: 0.055, fill: blue)
+  circle("s.s(" + pct + ")", radius: 0.055, fill: orange)
+}
+content((5.2, 0), [Equal t], anchor: "west")
+content((5.2, -0.7), [Equal distance], anchor: "west")
+```
 
-The Bézier control points between $bold(P)_1$ and $bold(P)_2$ are obtained by evaluating the endpoint derivatives:
-$ bold(B)_0 = bold(P)_1 $
-$ bold(B)_1 = bold(P)_1 + frac(t_2 - t_1, 3) [ frac(t_2 - t_1, t_2 - t_0) frac(bold(P)_1 - bold(P)_0, t_1 - t_0) + frac(t_1 - t_0, t_2 - t_0) frac(bold(P)_2 - bold(P)_1, t_2 - t_1) ] $
-$ bold(B)_2 = bold(P)_2 - frac(t_2 - t_1, 3) [ frac(t_3 - t_2, t_3 - t_1) frac(bold(P)_2 - bold(P)_1, t_2 - t_1) + frac(t_2 - t_1, t_3 - t_1) frac(bold(P)_3 - bold(P)_2, t_3 - t_2) ] $
-$ bold(B)_3 = bold(P)_2 $
+]
 
-== Curvature and Normal Vectors
+#block(breakable: false)[
+== Label a Curve and Inherit Canvas Styles
 
-The unit tangent vector is $bold(T)(u) = frac(C'(u), ||C'(u)||)$. The Frenet unit normal vector $bold(N)(u)$ points 90 degrees counter-clockwise from $bold(T)(u)$:
-$ bold(N)(u) = (-T_y(u), T_x(u)) $
+The label anchor is chosen from the left normal so the text sits beside the curve. Use `side: -1` for the opposite side. Distance values in analytical functions are absolute canvas units; `.s(50%)` is a fraction of total length.
 
-Signed scalar curvature $kappa(u)$ is:
-$ kappa(u) = frac(x'(u) y''(u) - y'(u) x''(u), (x'(u)^2 + y'(u)^2)^(3/2)) $
-Curvature is positive when the curve bends to the left (counter-clockwise) and negative when bending to the right (clockwise).
+```example-vertical
+let sp = cs.with-lut(cs.spline-catmull(((0, 0), (2, 1.5), (4, 0))))
+set-style(stroke: (paint: teal, thickness: 1.5pt))
+spline(sp, name: "route", mark: (end: ">"))
+let d = cs.spline-arc-length(sp) * 0.6
+circle("route.s(60%)", radius: 0.06, fill: teal)
+content("route.s(60%)", [60% of the route],
+  anchor: cs.spline-label-anchor-at-distance(sp, d), padding: 0.15)
+```
 
-== Arc-Length Quadrature and Inversion
+]
 
-Curve speed $||C'(t)||$ varies along polynomial splines. Arc length between parameters $a$ and $b$ is evaluated using 5-point Gauss-Legendre quadrature:
-$ integral_a^b ||C'(u)|| d u approx frac(b - a, 2) sum_(i=1)^5 w_i ||C'(frac(a+b, 2) + frac(b-a, 2) x_i)|| $
+== Numerical and API Conventions
 
-with weights and abscissae:
-$ x_1 = 0, quad w_1 = frac(128, 225) approx 0.568889 $
-$ x_(2,3) = plus.minus sqrt(frac(5 - 2 sqrt(10/7), 9)) approx plus.minus 0.538469, quad w_(2,3) = frac(322 + 13 sqrt(70), 900) approx 0.478629 $
-$ x_(4,5) = plus.minus sqrt(frac(5 + 2 sqrt(10/7), 9)) approx plus.minus 0.906180, quad w_(4,5) = frac(322 - 13 sqrt(70), 900) approx 0.236927 $
+Each stored cubic receives the same share of global $t$. Position and distance queries clamp to the curve domain. Reversing arc-length integration limits returns a negative length. Numeric `.s(0.5)` and `.t(0.5)` mean fractions; write percentages explicitly to avoid ambiguity. Legacy numeric anchor values above one are interpreted as percentages. Bare percentage anchors mean parameter fractions in this package.
 
-To map physical distance $s$ back to parameter $t$, Newton-Raphson iteration is performed:
-$ u_(k+1) = u_k - frac(s(u_k) - s_("target"), ||C'(u_k)||) $
+Sampling counts must be integers (`resample`: at least two; comb: at least three; homotopy resampling: at least four). Homotopy inputs must both be open or both closed. The arc-length mode rebuilds an interpolating curve through sampled correspondences, so it is an approximation. For closed curves, align their start points and traversal directions before morphing.
+
+The mathematical notes at the end explain continuity, orientation, and numerical limitations. They are optional for drawing and labeling curves.
 
 = API Reference
 
@@ -367,7 +353,7 @@ $ u_(k+1) = u_k - frac(s(u_k) - s_("target"), ||C'(u_k)||) $
     ("points", "array", [Array of 2D coordinates `((x0, y0), (x1, y1), ...)`.]),
     ("alpha", "float", [Knot exponent: `0.0` (uniform), `0.5` (centripetal, default), or `1.0` (chordal).]),
     ("closed", "bool", [Whether the curve is a closed periodic loop.]),
-    ("boundary", "str", [Boundary condition for open curves: `"clamped"` (virtual ghost points) or `"natural"`.]),
+    ("boundary", "str", [Open endpoint treatment: `"clamped"` extrapolates virtual points along endpoint chords; it does not prescribe a user-supplied derivative. `"natural"` adjusts exterior handles to give zero second derivatives at both ends.]),
   )
 )
 
@@ -387,7 +373,7 @@ for pt in pts { circle(pt, radius: 0.08, fill: black) }
     ("knots", "array", none),
   ),
   ret: "spline",
-  [Constructs a B-spline of arbitrary degree via Cox-de Boor recursion, decomposed into cubic Bézier segments.],
+  [Constructs a B-spline via Cox-de Boor recursion. Degrees up to three have exact cubic representations; higher degrees are approximated. The effective degree is limited to the number of points minus one.],
   parameters: (
     ("points", "array", [Array of control polygon vertices.]),
     ("degree", "int", [Polynomial degree (default: 3 for cubic B-spline).]),
@@ -441,7 +427,7 @@ spline(sp, stroke: 2pt + teal)
   "spline-normal",
   args: (("spline", "spline"), ("t", "float")),
   ret: "vector",
-  [Computes Frenet unit normal vector $bold(N)(t) = (-T_y, T_x)$.],
+  [Computes oriented left unit normal vector $bold(N)(t) = (-T_y, T_x)$.],
 )
 
 #fn-doc(
@@ -554,7 +540,7 @@ for p in pts { circle(p, radius: 0.1, fill: red) }
     ("subdivide", "bool", true),
   ),
   ret: "spline",
-  [Computes a parallel offset curve displaced along the normal field $C(u) + d dot bold(N)(u)$ with curvature-matched velocity.],
+  [Approximates the normal offset $C(u) + d dot bold(N)(u)$ using endpoint positions and curvature-scaled tangent handles. No approximation error bound or intersection removal is provided.],
   parameters: (
     ("spline", "spline", [Base curve.]),
     ("distance", "float", [Perpendicular offset distance (positive: left, negative: right).]),
@@ -671,13 +657,19 @@ spline(sc-dir, stroke: (paint: purple, thickness: 1.2pt, dash: "dashed"))
   args: (
     ("spline-obj", "any"),
     ("name", "str", none),
-    ("stroke", "stroke", 1pt + black),
-    ("fill", "paint", none),
+    ("stroke", "stroke", auto),
+    ("fill", "paint", auto),
     ("close", "bool", false),
+    ("mark", "any", auto),
+    ("..style", "any"),
   ),
   ret: "element",
   [CeTZ canvas drawing element. Accepts either a spline dictionary or an array of points. When a `name` is provided, automatically injects named anchors into CeTZ's coordinate resolution system.],
 )
+
+Styles are inherited from CeTZ with `auto` defaults. Pass `stroke`, `fill`, `fill-rule`, `mark`, or `shorten` as supported by CeTZ's merged paths. Use `none` to suppress stroke, fill, or marks explicitly. Stroke dictionaries support paint, thickness, dash, cap, and join. `draw-tangents`, `draw-normals`, and `draw-homotopy-field` forward extra named styles to their line elements; composite decorations expose separate styles for their parts.
+
+`close: true` on an existing open spline adds a straight closing path for rendering. It does not change the spline dictionary, evaluations, or distance anchors. To interpolate a smooth loop, construct it with `closed: true`. Points are numeric 2D canvas coordinates; a third coordinate is discarded. Arbitrary CeTZ anchor coordinates cannot be used as constructor input.
 
 === Dynamic Named Anchors
 
@@ -721,7 +713,7 @@ circle("c.pt-2", radius: 0.08, fill: orange)
 A fundamental distinction in differential geometry is the difference between *polynomial parameter space* $t in [0, 1]$ and *physical arc-length space* $s in [0, 1]$:
 
 - *Parameter Space (`"t(X%)"`)*: Evaluates the polynomial parameter $t = X / 100$. Because cubic segments vary in geometric size and knot spans, equal parameter steps do *not* cover equal physical distances. Points cluster tightly where knot spans are short and spread out on long segments.
-- *Arc-Length Space (`"s(X%)"`)*: Evaluates the exact physical curve distance $s = (X / 100) dot L$ using 5-point Gauss-Legendre numerical quadrature with Newton-Raphson root inversion. Equal arc-length steps are physically equidistant along the curve.
+- *Arc-Length Space (`"s(X%)"`)*: Evaluates the numerical curve distance $s = (X / 100) dot L$ using 5-point Gauss-Legendre numerical quadrature with Newton-Raphson root inversion. Equal arc-length steps are physically equidistant along the curve.
 
 The example below demonstrates this divergence on an asymmetric spline. Instead of hardcoded coordinate offsets, labels are positioned cleanly using the curve's normal angle `cs.spline-normal-angle`, which automatically directs text perpendicular to the tangent at any point:
 
@@ -770,7 +762,7 @@ content((0.9, 3.75), anchor: "west", text(size: 7pt)[.s(X%) - Physical arc lengt
     ("stroke", "stroke", 0.8pt + blue),
   ),
   ret: "element",
-  [Draws directed velocity / tangent arrows along the curve.],
+  [Draws directed unit tangent arrows along the curve.],
 )
 
 ```example
@@ -788,7 +780,7 @@ draw-tangents(sp, samples: 6, scale: 1.2, stroke: 1pt + blue)
     ("stroke", "stroke", 0.8pt + red),
   ),
   ret: "element",
-  [Draws perpendicular Frenet normal vectors along the curve.],
+  [Draws perpendicular oriented left normal vectors along the curve.],
 )
 
 ```example
@@ -845,11 +837,105 @@ spline(sp, stroke: 2pt + black)
 )
 
 #pagebreak()
+== Control Handles and Low-Level Helpers
+
+`cs.draw.draw-control-polygon(sp, stroke: (paint: luma(160), thickness: 0.6pt, dash: "dashed"), pt-radius: 0.05, pt-fill: luma(120))` draws each cubic's endpoint handles and the original input polygon. For B-splines, the original polygon is not the same as the extracted cubic handles.
+
+```example-vertical
+let sp = cs.spline-bspline(((0, 0), (1, 2), (3, 2), (4, 0)))
+draw-control-polygon(sp, pt-radius: 0.06, pt-fill: orange)
+spline(sp, stroke: 1.5pt + blue)
+```
+
+The root module also exports the following helpers. They primarily serve custom algorithms and spline construction; use the spline-level functions above for ordinary drawing.
+
+#block(breakable: false)[
+`make-spline` \
+`is-spline` \
+`assert-spline` \
+Build a dictionary with keyword fields shown in the mathematical notes, test the package marker, or assert that marker. Custom segment validity is the caller's responsibility.
+]
+
+#block(breakable: false)[
+`clean-point(pt)` \
+`clean-points(pts)` \
+Convert numeric coordinates to floating-point 2D tuples; extra coordinates are discarded.
+]
+
+#block(breakable: false)[
+`segment-count(sp)` \
+`get-segment(sp, idx)` \
+Read cubic count or a zero-based segment tuple.
+]
+
+#block(breakable: false)[
+`cubic-point` \
+`cubic-derivative` \
+`cubic-second-derivative` \
+Accept `(s, e, c1, c2, u)` and evaluate a single segment with local parameter `u`.
+]
+
+#block(breakable: false)[
+`cubic-tangent` \
+`cubic-normal` \
+`cubic-curvature` \
+The same five arguments; return a unit tangent, left normal, or signed curvature.
+]
+
+#block(breakable: false)[
+`cubic-tangent-angle` \
+`cubic-normal-angle` \
+The same five arguments; return a Typst angle.
+]
+
+#block(breakable: false)[
+`cubic-split(s, e, c1, c2, u)` \
+Return two CeTZ segment tuples meeting at local parameter `u`.
+]
+
+#block(breakable: false)[
+`segment-arc-length(s, e, c1, c2, u1: 0, u2: 1)` \
+Numerical oriented length of one segment interval.
+]
+
+#block(breakable: false)[
+`build-arc-length-lut` \
+`ensure-lut` \
+`with-lut` \
+Accept `(sp, samples-per-segment: 10)`; build a lookup table, retrieve an existing table or build one, or return a copy with the table attached. The sample count must be a positive integer.
+]
+
+#block(breakable: false)[
+`spline-normal-at-distance` \
+`spline-tangent-at-distance` \
+`spline-tangent-angle-at-distance` \
+Accept `(sp, distance)`; evaluate the left normal, unit tangent, or tangent angle at an absolute numerical distance.
+]
+
+#block(breakable: false)[
+`generate-clamped-knots(n, p)` \
+`generate-periodic-knots(n, p)` \
+Generate knots for `n` original points and degree `p`. Periodic evaluation additionally repeats the first `p` points.
+]
+
+#block(breakable: false)[
+`cox-de-boor(u, p, knots, pts)` \
+`cox-de-boor-derivative(u, p, knots, pts)` \
+Evaluate a B-spline or its derivative in the original knot domain, not the equal-segment global parameter.
+]
+
+#block(breakable: false)[
+`catmull-to-bezier-segments` \
+`bspline-to-bezier-segments` \
+Accept the corresponding constructor's arguments and return only the array of cubic tuples.
+]
+
+#pagebreak()
 = Examples Gallery
 
 == Aerodynamic Airfoil Profile & Curvature Comb
 
-A transonic airfoil camber profile evaluated with centripetal Catmull-Rom splines. The CAD curvature comb along the upper suction surface visualizes aerodynamic acceleration, suction peak, and smooth pressure recovery towards the trailing edge.
+An illustrative airfoil outline, rather than a physical flow model. The comb shows where geometric curvature changes abruptly or becomes large; it does not calculate pressure or aerodynamic acceleration. Try reducing `scale` if the needles obscure the profile.
 
 ```example-vertical
 let upper-pts = ((0, 0), (0.35, 0.65), (1.2, 0.88), (2.8, 0.68), (4.5, 0.22), (5.5, 0))
@@ -877,16 +963,16 @@ line("suction.start", "suction.end", stroke: (paint: gray, thickness: 0.6pt, das
 
 // Annotations
 circle("suction.start", radius: 0.08, fill: rgb("#0284c7"))
-content("suction.start", text(size: 7pt, weight: "bold")[Leading Edge], anchor: 45deg, padding: 0.15)
+content("suction.start", text(size: 7pt, weight: "bold")[Leading Edge], anchor: "north-east", padding: 0.15)
 
 circle("suction.end", radius: 0.08, fill: rgb("#0284c7"))
-content("suction.end", text(size: 7pt, weight: "bold")[Trailing Edge], anchor: 135deg, padding: 0.15)
+content("suction.end", text(size: 7pt, weight: "bold")[Trailing Edge], anchor: "north-west", padding: 0.15)
 ```
 
 #pagebreak()
 == High-Speed Racetrack Corner & Banking Lanes
 
-Generating a racing line chicane with parallel track boundaries and curbs using `cs.offset`. Braking, apex, and acceleration points are positioned at exact physical arc-length distances using `"s(X%)"` anchors.
+Generating a racing line chicane with parallel track boundaries and curbs using `cs.offset`. Braking, apex, and acceleration points are positioned at numerical arc-length distances using `"s(X%)"` anchors.
 
 ```example-vertical
 let track-pts = ((-4, -1.5), (-1.5, 1.4), (1, -1.0), (3.5, 1.6), (6.5, 0.2))
@@ -909,13 +995,13 @@ draw-tangents(racing-line, samples: 7, scale: 0.7, stroke: 1.2pt + rgb("#0284c7"
 
 // Arc-length key positions oriented along curve normals
 circle("race.s(20%)", radius: 0.1, fill: rgb("#f59e0b"))
-content("race.s(20%)", text(size: 6.5pt, weight: "bold", fill: rgb("#b45309"))[Braking Zone (s = 20%)], anchor: cs.spline-label-anchor(racing-line, 0.2), padding: 0.12)
+content("race.s(20%)", text(size: 6.5pt, weight: "bold", fill: rgb("#b45309"))[Braking Zone (s = 20%)], anchor: cs.spline-label-anchor-at-distance(racing-line, cs.spline-arc-length(racing-line) * 0.2), padding: 0.12)
 
 circle("race.s(50%)", radius: 0.12, fill: rgb("#10b981"))
-content("race.s(50%)", text(size: 7pt, weight: "bold", fill: rgb("#047857"))[Corner Apex (s = 50%)], anchor: cs.spline-label-anchor(racing-line, 0.5, side: -1), padding: 0.15)
+content("race.s(50%)", text(size: 7pt, weight: "bold", fill: rgb("#047857"))[Corner Apex (s = 50%)], anchor: cs.spline-label-anchor-at-distance(racing-line, cs.spline-arc-length(racing-line) * 0.5, side: -1), padding: 0.15)
 
 circle("race.s(80%)", radius: 0.1, fill: rgb("#3b82f6"))
-content("race.s(80%)", text(size: 6.5pt, weight: "bold", fill: rgb("#1d4ed8"))[Exit Throttle (s = 80%)], anchor: cs.spline-label-anchor(racing-line, 0.8), padding: 0.12)
+content("race.s(80%)", text(size: 6.5pt, weight: "bold", fill: rgb("#1d4ed8"))[Exit Throttle (s = 80%)], anchor: cs.spline-label-anchor-at-distance(racing-line, cs.spline-arc-length(racing-line) * 0.8), padding: 0.12)
 ```
 
 #pagebreak()
@@ -949,13 +1035,13 @@ circle((0, 0), radius: 0.6, stroke: (paint: gray, thickness: 0.7pt, dash: "dashe
 let follower-contact = "cam-body.s(15%)"
 circle(follower-contact, radius: 0.08, fill: rgb("#0284c7"))
 line((0, 0), follower-contact, stroke: 0.6pt + rgb("#94a3b8"))
-content(follower-contact, text(size: 7pt, weight: "bold", fill: rgb("#0284c7"))[Follower Contact], anchor: cs.spline-label-anchor(cam, 0.15), padding: 0.15)
+content(follower-contact, text(size: 7pt, weight: "bold", fill: rgb("#0284c7"))[Follower Contact], anchor: cs.spline-label-anchor-at-distance(cam, cs.spline-arc-length(cam) * 0.15), padding: 0.15)
 ```
 
 #pagebreak()
 == Shape Morphing (Homotopy Family & Flow Field)
 
-Continuous linear homotopy $(1-t) A + t B$ morphing between an elliptical teardrop profile and an undulating 4-lobed profile. The directional deformation vector field visualizes the displacement flux across the boundary.
+Continuous linear homotopy $(1-t) A + t B$ morphing between an elliptical teardrop profile and an undulating 4-lobed profile. The arrows connect corresponding sample positions and show displacement; they do not represent a physical flow or flux.
 
 ```example-vertical
 let circle-pts = ((0, 2), (2, 0), (0, -2), (-2, 0))
@@ -980,7 +1066,7 @@ spline(target-shape, stroke: 2pt + rgb("#ef4444"))
 #pagebreak()
 == Knot Exponent Comparison ($alpha$)
 
-Comparison of uniform ($alpha = 0.0$), centripetal ($alpha = 0.5$), and chordal ($alpha = 1.0$) Catmull-Rom parameterization over unevenly spaced control points. Centripetal parameterization mathematically eliminates the loop/cusp artifact present in the uniform curve.
+Comparison of uniform ($alpha = 0.0$), centripetal ($alpha = 0.5$), and chordal ($alpha = 1.0$) Catmull-Rom parameterization over unevenly spaced control points. Compare the different bulges around the closely spaced points. Centripetal parameterization avoids within-segment cusps for distinct consecutive points; a uniform curve need not exhibit a cusp for every input.
 
 ```example-vertical
 let pts = ((-3.5, 0), (-1.2, 3), (-0.8, 0.2), (0.8, 0.2), (1.2, 3), (3.5, 0))
@@ -997,9 +1083,9 @@ for p in pts { circle(p, radius: 0.08, fill: black) }
 // Legend
 rect((0.2, -0.7), (4.8, -1.9), stroke: 0.5pt + gray, fill: rgb("#fffffffa"), radius: 3pt)
 line((0.4, -0.9), (1.1, -0.9), stroke: 1.5pt + rgb("#ef4444"))
-content((1.3, -0.9), anchor: "west", text(size: 7.5pt)[Uniform (alpha = 0.0) - Unwanted cusps])
+content((1.3, -0.9), anchor: "west", text(size: 7.5pt)[Uniform (alpha = 0.0)])
 line((0.4, -1.3), (1.1, -1.3), stroke: 2.2pt + rgb("#0f172a"))
-content((1.3, -1.3), anchor: "west", text(size: 7.5pt)[Centripetal (alpha = 0.5) - Cusp-free])
+content((1.3, -1.3), anchor: "west", text(size: 7.5pt)[Centripetal (alpha = 0.5)])
 line((0.4, -1.7), (1.1, -1.7), stroke: 1.5pt + rgb("#059669"))
 content((1.3, -1.7), anchor: "west", text(size: 7.5pt)[Chordal (alpha = 1.0) - Smooth])
 ```
@@ -1024,3 +1110,79 @@ for i in range(6) {
   spline(rot-blade, stroke: 1.8pt + clr)
 }
 ```
+
+#pagebreak()
+= Mathematical Notes
+
+== Spline Data Representation
+
+Every curve in `cetz-spline` is represented by an immutable dictionary:
+
+```typst
+#let make-spline(
+  type: "catmull-rom",       // "catmull-rom" | "bspline" | "homotopy" | "offset"
+  pts: (),                   // Array of original input points
+  closed: false,             // bool
+  meta: (:),                 // Spline parameters (alpha, degree, knots, etc.)
+  segments: (),              // Array of native CeTZ cubic Bézier segments ((s, e, c1, c2), ...)
+  lut: none,                 // Cached arc-length lookup table
+)
+```
+
+Each segment inside `segments` follows CeTZ's standard Bézier tuple:
+$ (bold(s), bold(e), bold(c)_1, bold(c)_2) $
+where $bold(s)$ is the starting point, $bold(e)$ is the end point, and $bold(c)_1, bold(c)_2$ are control handles.
+
+== Centripetal Catmull-Rom Parameterization
+
+For four consecutive interpolation points $bold(P)_0, bold(P)_1, bold(P)_2, bold(P)_3$, knot intervals are computed as:
+$ t_0 = 0, quad t_(i+1) = t_i + ||bold(P)_(i+1) - bold(P)_i||^alpha $
+where:
+- $alpha = 0.0$: Uniform Catmull-Rom. Susceptible to self-intersections and cusps when distance between adjacent points varies significantly.
+- $alpha = 0.5$: Centripetal Catmull-Rom (default). Proven by Yuksel et al. (2011) to be cusp-free and self-intersection-free within segments.
+- $alpha = 1.0$: Chordal Catmull-Rom. Knots are proportional to Euclidean chord length.
+
+The Bézier control points between $bold(P)_1$ and $bold(P)_2$ are obtained by evaluating the endpoint derivatives:
+$ bold(B)_0 = bold(P)_1 $
+$ bold(B)_1 = bold(P)_1 + frac(t_2 - t_1, 3) [ frac(t_2 - t_1, t_2 - t_0) frac(bold(P)_1 - bold(P)_0, t_1 - t_0) + frac(t_1 - t_0, t_2 - t_0) frac(bold(P)_2 - bold(P)_1, t_2 - t_1) ] $
+$ bold(B)_2 = bold(P)_2 - frac(t_2 - t_1, 3) [ frac(t_3 - t_2, t_3 - t_1) frac(bold(P)_2 - bold(P)_1, t_2 - t_1) + frac(t_2 - t_1, t_3 - t_1) frac(bold(P)_3 - bold(P)_2, t_3 - t_2) ] $
+$ bold(B)_3 = bold(P)_2 $
+
+== Curvature and Normal Vectors
+
+The unit tangent vector is $bold(T)(u) = frac(C'(u), ||C'(u)||)$. The oriented left unit normal vector $bold(N)(u)$ points 90 degrees counter-clockwise from $bold(T)(u)$:
+$ bold(N)(u) = (-T_y(u), T_x(u)) $
+
+Signed scalar curvature $kappa(u)$ is:
+$ kappa(u) = frac(x'(u) y''(u) - y'(u) x''(u), (x'(u)^2 + y'(u)^2)^(3/2)) $
+Curvature is positive when the curve bends to the left (counter-clockwise) and negative when bending to the right (clockwise).
+
+== Arc-Length Quadrature and Inversion
+
+Curve speed $||C'(t)||$ varies along polynomial splines. Arc length between parameters $a$ and $b$ is evaluated using 5-point Gauss-Legendre quadrature:
+$ integral_a^b ||C'(u)|| d u approx frac(b - a, 2) sum_(i=1)^5 w_i ||C'(frac(a+b, 2) + frac(b-a, 2) x_i)|| $
+
+with weights and abscissae:
+$ x_1 = 0, quad w_1 = frac(128, 225) approx 0.568889 $
+$ x_(2,3) = plus.minus sqrt(frac(5 - 2 sqrt(10/7), 9)) approx plus.minus 0.538469, quad w_(2,3) = frac(322 + 13 sqrt(70), 900) approx 0.478629 $
+$ x_(4,5) = plus.minus sqrt(frac(5 + 2 sqrt(10/7), 9)) approx plus.minus 0.906180, quad w_(4,5) = frac(322 - 13 sqrt(70), 900) approx 0.236927 $
+
+The implementation adaptively compares each interval with two half intervals, up to a bounded refinement depth. These are numerical estimates, not exact lengths or certified error bounds. Cached lookup tables avoid repeated work when explicitly attached with `cs.with-lut(sp)`.
+
+To map physical distance $s$ back to parameter $t$, a bracketed Newton iteration is performed, with bisection when the Newton step leaves the bracket:
+$ u_(k+1) = u_k - frac(s(u_k) - s_("target"), ||C'(u_k)||) $
+
+
+== Parameterization and Continuity
+
+Global $t$ assigns equal parameter intervals to the stored cubic segments. It does not preserve the original nonuniform B-spline knot parameter or the Catmull–Rom knot times. Position is continuous at joins, but derivatives with respect to global $t$ can jump. For nonuniform Catmull–Rom splines, tangent direction is continuous at regular joins; tangent magnitude need not be. Curvature and second derivatives can also jump. At a join, evaluation uses the segment on the right, except at $t = 1$.
+
+The left normal is defined by orientation, even at inflections; it is not the principal oriented left normal, which changes sign with curvature. At a stationary point the mathematical tangent and curvature may be undefined. The implementation tries a nearby derivative for the tangent, then uses $(1, 0)$ as a fallback; curvature returns zero below its speed threshold. Treat those values as drawing conventions.
+
+== Approximation Limits
+
+B-splines of degree one through three convert to cubic segments exactly up to floating-point rounding. Higher degrees use piecewise cubic Hermite approximation with `degree - 2` pieces per knot span; no error tolerance is currently exposed. Custom interior knot multiplicity may not exceed the effective degree: discontinuous curves are rejected.
+
+`cs.offset` approximates a normal offset by matching endpoint positions and scaled tangent handles. A single split may improve a segment with differing endpoint curvatures, but does not guarantee an error bound, remove intersections, or construct joins at corners. At distances near a curvature radius, the true offset can develop singularities. Use modest distances and inspect the result.
+
+The centripetal guarantee concerns individual regular segments with distinct consecutive points, not global intersections between different segments. Repeated points are handled numerically, but are outside that guarantee. See #link("https://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf")[Yuksel, Schaefer, and Keyser, _On the Parameterization of Catmull–Rom Curves_] for the precise result.

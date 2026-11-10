@@ -12,7 +12,7 @@
 )
 #import "draw_spline.typ": spline
 
-/// Draw directed tangent / velocity vectors along a spline.
+/// Draw directed unit tangent vectors along a spline.
 ///
 /// - spline-obj (spline, array): Spline dictionary or points
 /// - samples (int): Number of tangent vectors to draw
@@ -25,16 +25,18 @@
   scale: 0.4,
   stroke: 0.8pt + blue,
   mark: (end: ">"),
+  ..style,
 ) = {
+  assert(style.pos() == (), message: "Unexpected positional arguments")
   import cetz.draw: line
   let sp = if type(spline-obj) == array { spline-catmull(spline-obj) } else { spline-obj }
   assert-spline(sp)
 
-  let n = calc.max(2, samples)
-  let count = if sp.closed { n } else { n }
+  assert(type(samples) == int and samples >= 2, message: "samples must be an integer >= 2")
+  let n = samples
   let denom = if sp.closed { float(n) } else { float(n - 1) }
 
-  for i in range(0, count) {
+  for i in range(0, n) {
     let t = float(i) / denom
     let p = spline-eval(sp, t)
     let tg = spline-tangent(sp, t)
@@ -42,7 +44,7 @@
       p.at(0) + scale * tg.at(0),
       p.at(1) + scale * tg.at(1),
     )
-    line(p, p-end, stroke: stroke, mark: mark)
+    line(p, p-end, stroke: stroke, mark: mark, ..style.named())
   }
 }
 
@@ -59,16 +61,18 @@
   scale: 0.4,
   stroke: 0.8pt + red,
   mark: (end: ">"),
+  ..style,
 ) = {
+  assert(style.pos() == (), message: "Unexpected positional arguments")
   import cetz.draw: line
   let sp = if type(spline-obj) == array { spline-catmull(spline-obj) } else { spline-obj }
   assert-spline(sp)
 
-  let n = calc.max(2, samples)
-  let count = if sp.closed { n } else { n }
+  assert(type(samples) == int and samples >= 2, message: "samples must be an integer >= 2")
+  let n = samples
   let denom = if sp.closed { float(n) } else { float(n - 1) }
 
-  for i in range(0, count) {
+  for i in range(0, n) {
     let t = float(i) / denom
     let p = spline-eval(sp, t)
     let nrm = spline-normal(sp, t)
@@ -76,7 +80,7 @@
       p.at(0) + scale * nrm.at(0),
       p.at(1) + scale * nrm.at(1),
     )
-    line(p, p-end, stroke: stroke, mark: mark)
+    line(p, p-end, stroke: stroke, mark: mark, ..style.named())
   }
 }
 
@@ -97,12 +101,13 @@
   envelope-stroke: 0.8pt + blue,
   fill: none,
 ) = {
-  import cetz.draw: line, polygon, merge-path
+  import cetz.draw: line
 
   let sp = if type(spline-obj) == array { spline-catmull(spline-obj) } else { spline-obj }
   assert-spline(sp)
 
-  let n = calc.max(3, samples)
+  assert(type(samples) == int and samples >= 3, message: "samples must be an integer >= 3")
+  let n = samples
   let denom = if sp.closed { float(n) } else { float(n - 1) }
 
   let base-pts = ()

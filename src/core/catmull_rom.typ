@@ -56,6 +56,9 @@
   let n = pts.len()
   assert(n >= 2, message: "Catmull-Rom spline requires at least 2 points, got " + str(n))
 
+  assert(type(alpha) in (int, float) and alpha >= 0 and alpha <= 1, message: "alpha must be a number in [0, 1]")
+  assert(boundary in ("clamped", "natural"), message: "boundary must be clamped or natural")
+
   let segments = ()
 
   if closed {
@@ -73,20 +76,9 @@
     let p-last = pts.at(n - 1)
     let p-prev = pts.at(n - 2)
 
-    let p-ghost-start = if boundary == "natural" {
-      // Natural: C''(0) = 0 approximation -> ghost point mirrors p1 across p0 with curvature adjustment
-      vector.sub(vector.scale(p-first, 2.0), p-second)
-    } else {
-      // Clamped ghost point: P_{-1} = 2*P_0 - P_1
-      vector.sub(vector.scale(p-first, 2.0), p-second)
-    }
-
-    let p-ghost-end = if boundary == "natural" {
-      vector.sub(vector.scale(p-last, 2.0), p-prev)
-    } else {
-      // Clamped ghost point: P_N = 2*P_{N-1} - P_{N-2}
-      vector.sub(vector.scale(p-last, 2.0), p-prev)
-    }
+    // Extrapolated ghost points preserve the endpoint chord direction.
+    let p-ghost-start = vector.sub(vector.scale(p-first, 2.0), p-second)
+    let p-ghost-end = vector.sub(vector.scale(p-last, 2.0), p-prev)
 
     let extended = (p-ghost-start, ..pts, p-ghost-end)
     for i in range(0, n - 1) {
@@ -98,6 +90,16 @@
     }
   }
 
+  if not closed and boundary == "natural" {
+    // C''(0) = 6(s - 2c1 + c2) and C''(1) = 6(e - 2c2 + c1).
+    // Adjust only exterior handles, preserving interpolation and interior joins.
+    let first = segments.first()
+    first.at(2) = vector.scale(vector.add(first.at(0), first.at(3)), 0.5)
+    segments.at(0) = first
+    let last = segments.last()
+    last.at(3) = vector.scale(vector.add(last.at(1), last.at(2)), 0.5)
+    segments.at(segments.len() - 1) = last
+  }
   segments
 }
 

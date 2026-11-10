@@ -43,7 +43,7 @@
 /// - u1 (float): lower bound [0, 1]
 /// - u2 (float): upper bound [0, 1]
 /// -> float
-#let segment-arc-length(s, e, c1, c2, u1: 0.0, u2: 1.0) = {
+#let _quadrature(s, e, c1, c2, u1: 0.0, u2: 1.0) = {
   let a = float(u1)
   let b = float(u2)
   if calc.abs(b - a) < 1e-12 {
@@ -71,9 +71,25 @@
   sign * h * sum
 }
 
+// Refine only intervals whose two-half estimate differs materially.
+#let segment-arc-length(s, e, c1, c2, u1: 0.0, u2: 1.0) = {
+  let integrate(a, b, whole, depth) = {
+    let mid = (a + b) / 2
+    let left = _quadrature(s, e, c1, c2, u1: a, u2: mid)
+    let right = _quadrature(s, e, c1, c2, u1: mid, u2: b)
+    let refined = left + right
+    if depth == 0 or calc.abs(refined - whole) <= 1e-9 * (1 + calc.abs(refined)) {
+      return refined
+    }
+    integrate(a, mid, left, depth - 1) + integrate(mid, b, right, depth - 1)
+  }
+  integrate(u1, u2, _quadrature(s, e, c1, c2, u1: u1, u2: u2), 12)
+}
+
 /// Build an arc-length lookup table (LUT) for a spline.
 /// Stores cumulative segment lengths and equidistant parameter samples for fast inversion.
 #let build-arc-length-lut(spline, samples-per-segment: 10) = {
+  assert(type(samples-per-segment) == int and samples-per-segment >= 1, message: "samples-per-segment must be a positive integer")
   assert-spline(spline)
   let n = spline.segments.len()
   if n == 0 {
@@ -239,7 +255,9 @@
   let u = if seg-len > 1e-9 { calc.max(0.0, calc.min(1.0, target-seg-s / seg-len)) } else { 0.5 }
 
   // Newton-Raphson iterations
-  let max-iter = 8
+  let lower = 0.0
+  let upper = 1.0
+  let max-iter = 32
   let tol = 1e-6
   for _ in range(0, max-iter) {
     let current-s = segment-arc-length(s-pt, e-pt, c1-pt, c2-pt, u1: 0.0, u2: u)
@@ -249,17 +267,15 @@
     }
     let d = cubic-derivative(s-pt, e-pt, c1-pt, c2-pt, u)
     let speed = vector.len(d)
-    if speed < 1e-9 {
-      break
-    }
-    let u-next = u - (diff / speed)
-    u = calc.max(0.0, calc.min(1.0, u-next))
+    if diff > 0 { upper = u } else { lower = u }
+    let u-next = if speed > 1e-12 { u - diff / speed } else { (lower + upper) / 2 }
+    u = if lower < u-next and u-next < upper { u-next } else { (lower + upper) / 2 }
   }
 
   (float(idx) + u) / float(n)
 }
 
-/// Evaluate spline position at exact arc-length distance `distance` from start.
+/// Evaluate spline position at numerical arc-length distance `distance` from start.
 ///
 /// - spline (spline): Spline dictionary
 /// - distance (float): Distance in curve coordinate units
@@ -269,33 +285,33 @@
   spline-eval(spline, t)
 }
 
-/// Evaluate unit normal vector N at exact arc-length distance `distance`.
+/// Evaluate unit normal vector N at numerical arc-length distance `distance`.
 #let spline-normal-at-distance(spline, distance) = {
   let t = spline-t-for-distance(spline, distance)
   spline-normal(spline, t)
 }
 
-/// Evaluate unit normal vector direction angle at exact arc-length distance `distance`.
+/// Evaluate unit normal vector direction angle at numerical arc-length distance `distance`.
 /// Returns a Typst angle (e.g. `90deg`, `-45deg`).
 #let spline-normal-angle-at-distance(spline, distance) = {
   let t = spline-t-for-distance(spline, distance)
   spline-normal-angle(spline, t)
 }
 
-/// Evaluate unit tangent vector T at exact arc-length distance `distance`.
+/// Evaluate unit tangent vector T at numerical arc-length distance `distance`.
 #let spline-tangent-at-distance(spline, distance) = {
   let t = spline-t-for-distance(spline, distance)
   spline-tangent(spline, t)
 }
 
-/// Evaluate unit tangent vector direction angle at exact arc-length distance `distance`.
+/// Evaluate unit tangent vector direction angle at numerical arc-length distance `distance`.
 #let spline-tangent-angle-at-distance(spline, distance) = {
   let t = spline-t-for-distance(spline, distance)
   spline-tangent-angle(spline, t)
 }
 
 /// Compute recommended CeTZ content anchor angle for placing labels along the curve normal
-/// at exact arc-length distance `distance`.
+/// at numerical arc-length distance `distance`.
 #let spline-label-anchor-at-distance(spline, distance, side: 1) = {
   let t = spline-t-for-distance(spline, distance)
   spline-label-anchor(spline, t, side: side)

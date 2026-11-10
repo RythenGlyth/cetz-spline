@@ -21,7 +21,8 @@
 /// -> array of 2D points `((x0, y0), (x1, y1), ...)`
 #let resample(spline, count) = {
   assert-spline(spline)
-  let n = calc.max(2, int(count))
+  assert(type(count) == int and count >= 2, message: "count must be an integer >= 2")
+  let n = count
   let total-l = spline-arc-length(spline)
   let pts = ()
 
@@ -61,6 +62,12 @@
 #let homotopy(spline-a, spline-b, t, mode: "auto", samples: auto) = {
   assert-spline(spline-a, name: "spline-a")
   assert-spline(spline-b, name: "spline-b")
+  assert(mode in ("auto", "segment", "arc-length", "length"), message: "Unknown homotopy mode")
+  assert(samples == auto or (type(samples) == int and samples >= 4), message: "samples must be auto or an integer >= 4")
+  assert(spline-a.closed == spline-b.closed, message: "Homotopy requires matching open/closed topology")
+  if mode == "segment" {
+    assert(spline-a.segments.len() == spline-b.segments.len(), message: "Segment homotopy requires identical segment counts")
+  }
   let t-val = calc.max(0.0, calc.min(1.0, float(t)))
 
   if t-val == 0.0 {

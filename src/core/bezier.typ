@@ -1,5 +1,5 @@
 // cetz-spline: bezier.typ
-// Bézier curve analysis: second derivatives, curvature, Frenet normal and tangent vectors.
+// Bézier curve analysis: second derivatives, curvature, oriented left normal and tangent vectors.
 
 #import "@preview/cetz:0.5.3": vector, util
 #import "types.typ": assert-spline, clean-point

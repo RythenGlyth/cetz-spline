@@ -7,7 +7,6 @@
 /// Generate clamped (open-uniform) knot vector for n control points and degree p.
 /// Format: p+1 zeros, uniform intermediate knots, p+1 ones.
 #let generate-clamped-knots(n, p) = {
-  let m = n + p
   let knots = ()
   for _ in range(0, p + 1) {
     knots.push(0.0)
@@ -76,7 +75,7 @@
         let left-knot = knots.at(idx - p + j)
         let right-knot = knots.at(idx + 1 + j - r)
         let denom = right-knot - left-knot
-        let alpha = if denom > 1e-12 { (u-val - left-knot) / denom } else { 0.0 }
+        let alpha = if denom > 0 { (u-val - left-knot) / denom } else { 0.0 }
         d.at(j) = vector.add(
           vector.scale(d.at(j - 1), 1.0 - alpha),
           vector.scale(d.at(j), alpha)
@@ -97,7 +96,7 @@
   let q-pts = ()
   for j in range(0, n - 1) {
     let denom = knots.at(j + p + 1) - knots.at(j + 1)
-    let scale = if denom > 1e-12 { float(p) / denom } else { 0.0 }
+    let scale = if denom > 0 { float(p) / denom } else { 0.0 }
     let diff = vector.sub(pts.at(j + 1), pts.at(j))
     q-pts.push(vector.scale(diff, scale))
   }
@@ -114,7 +113,26 @@
 #let bspline-to-bezier-segments(points, degree: 3, closed: false, knots: none) = {
   let pts = clean-points(points)
   let n = pts.len()
-  let p = calc.max(1, calc.min(degree, n - 1))
+  assert(n >= 2, message: "B-spline requires at least 2 points")
+  assert(type(degree) == int and degree >= 1, message: "degree must be a positive integer")
+  let p = calc.min(degree, n - 1)
+  if knots != none {
+    let count = if closed { n + 2 * p + 1 } else { n + p + 1 }
+    assert(type(knots) == array and knots.len() == count, message: "Invalid knot vector length; expected " + str(count))
+    for k in knots {
+      assert(type(k) in (int, float), message: "Knots must be numeric")
+    }
+    for i in range(1, knots.len()) {
+      assert(knots.at(i) >= knots.at(i - 1), message: "Knots must be non-decreasing")
+    }
+    let end = if closed { n + p } else { n }
+    assert(knots.at(p) < knots.at(end), message: "Knot domain must have positive length")
+    for k in knots.dedup() {
+      if knots.at(p) < k and k < knots.at(end) {
+        assert(knots.filter(v => v == k).len() <= p, message: "Discontinuous interior knots are not supported")
+      }
+    }
+  }
 
   let (eval-pts, knot-vec, spans) = if closed {
     // Extend control points periodically
@@ -126,7 +144,7 @@
     // Knot spans between u_p and u_{n+p}
     let sp = ()
     for i in range(p, n + p) {
-      if k-vec.at(i + 1) - k-vec.at(i) > 1e-9 {
+      if k-vec.at(i + 1) - k-vec.at(i) > 0 {
         sp.push((k-vec.at(i), k-vec.at(i + 1)))
       }
     }
@@ -135,7 +153,7 @@
     let k-vec = if knots != none { knots } else { generate-clamped-knots(n, p) }
     let sp = ()
     for i in range(p, n) {
-      if k-vec.at(i + 1) - k-vec.at(i) > 1e-9 {
+      if k-vec.at(i + 1) - k-vec.at(i) > 0 {
         sp.push((k-vec.at(i), k-vec.at(i + 1)))
       }
     }
@@ -146,14 +164,18 @@
   for span in spans {
     let (a, b) = span
     let delta = b - a
-    let eps = 1e-8 * delta
 
     if p <= 3 {
       // Exact representation for degree <= 3
       let s = cox-de-boor(a, p, knot-vec, eval-pts)
       let e = cox-de-boor(b, p, knot-vec, eval-pts)
-      let d_a = cox-de-boor-derivative(a + eps, p, knot-vec, eval-pts)
-      let d_b = cox-de-boor-derivative(b - eps, p, knot-vec, eval-pts)
+      // The derivative has degree <= 2. Recover its one-sided endpoint
+      // values from interior samples, avoiding epsilon perturbation at knots.
+      let d1 = cox-de-boor-derivative(a + delta / 4, p, knot-vec, eval-pts)
+      let d2 = cox-de-boor-derivative(a + delta / 2, p, knot-vec, eval-pts)
+      let d3 = cox-de-boor-derivative(a + 3 * delta / 4, p, knot-vec, eval-pts)
+      let d_a = vector.add(vector.sub(vector.scale(d1, 3), vector.scale(d2, 3)), d3)
+      let d_b = vector.add(vector.sub(d1, vector.scale(d2, 3)), vector.scale(d3, 3))
 
       let c1 = vector.add(s, vector.scale(d_a, delta / 3.0))
       let c2 = vector.sub(e, vector.scale(d_b, delta / 3.0))
@@ -189,8 +211,8 @@
 /// -> spline dictionary
 #let spline-bspline(points, degree: 3, closed: false, knots: none) = {
   let pts = clean-points(points)
-  let p = calc.max(1, calc.min(degree, pts.len() - 1))
-  let segs = bspline-to-bezier-segments(pts, degree: p, closed: closed, knots: knots)
+  let segs = bspline-to-bezier-segments(pts, degree: degree, closed: closed, knots: knots)
+  let p = calc.min(degree, pts.len() - 1)
   make-spline(
     type: "bspline",
     pts: pts,

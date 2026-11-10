@@ -25,7 +25,8 @@
   assert-spline(spline-a, name: "spline-a")
   assert-spline(spline-b, name: "spline-b")
 
-  let n = calc.max(1, steps)
+  assert(type(steps) == int and steps >= 1, message: "steps must be a positive integer")
+  let n = steps
   for i in range(0, n + 1) {
     let t = float(i) / float(n)
     let intermediate = homotopy(spline-a, spline-b, t, mode: mode, samples: samples)
@@ -49,19 +50,23 @@
   stroke: 0.8pt + blue,
   mark: (end: ">"),
   mode: "arc-length",
+  ..style,
 ) = {
+  assert(style.pos() == (), message: "Unexpected positional arguments")
   import cetz.draw: line
   import "../core/bezier.typ": spline-eval
 
   assert-spline(spline-a, name: "spline-a")
   assert-spline(spline-b, name: "spline-b")
 
-  let n = calc.max(2, samples)
+  assert(type(samples) == int and samples >= 2, message: "samples must be an integer >= 2")
+  let n = samples
+  assert(mode in ("segment", "arc-length"), message: "mode must be segment or arc-length")
   let (pts-a, pts-b) = if mode == "segment" {
     let pa = ()
     let pb = ()
     for i in range(0, n) {
-      let t = float(i) / float(n - 1)
+      let t = float(i) / float(if spline-a.closed and spline-b.closed { n } else { n - 1 })
       pa.push(spline-eval(spline-a, t))
       pb.push(spline-eval(spline-b, t))
     }
@@ -73,7 +78,7 @@
   for i in range(0, n) {
     let pa = pts-a.at(i)
     let pb = pts-b.at(i)
-    line(pa, pb, stroke: stroke, mark: mark)
+    line(pa, pb, stroke: stroke, mark: mark, ..style.named())
   }
 }
 

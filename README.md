@@ -2,10 +2,9 @@
 
 > **Advanced mathematical splines, centripetal Catmull-Rom parameterization, curvature combs, arc-length parameterization, and homotopies for [CeTZ](https://github.com/cetz-package/cetz).**
 
-[![Typst Version](https://img.shields.io/badge/Typst-%3E%3D0.11.0-blue.svg)](https://typst.app)
+[![Typst Version](https://img.shields.io/badge/Typst-%3E%3D0.15.0-blue.svg)](https://typst.app)
 [![CeTZ Version](https://img.shields.io/badge/CeTZ-0.5.3-green.svg)](https://github.com/cetz-package/cetz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE-MIT)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](test.sh)
 [![Documentation](https://img.shields.io/badge/manual-PDF-purple.svg)](manual.pdf)
 
 ![cetz-spline Overview](assets/cover.png)
@@ -14,13 +13,13 @@
 
 ## Features
 
-- **Centripetal & Chordal Catmull-Rom Splines ($\alpha = 0.5, 1.0$)**: Eliminates cusps, self-intersections, and overshoot at sharp corners (in contrast to standard uniform $\alpha = 0$).
-- **Second Derivatives & Signed Curvature Fields**: Acceleration $C''(u)$, Frenet unit normal field $\mathbf{N}(u)$, and signed curvature $\kappa(u) = \frac{x'y'' - y'x''}{(x'^2 + y'^2)^{3/2}}$.
-- **Arbitrary-Degree B-Splines**: Uniform and clamped B-splines via Cox-de Boor recursion with exact cubic Bézier decomposition.
+- **Centripetal & Chordal Catmull-Rom Splines ($\alpha = 0.5, 1.0$)**: Centripetal parameterization avoids cusps and self-intersections within regular individual segments; it does not prevent intersections between different segments.
+- **Second Derivatives & Signed Curvature Fields**: Acceleration $C''(u)$, oriented left unit normal field $\mathbf{N}(u)$, and signed curvature $\kappa(u) = \frac{x'y'' - y'x''}{(x'^2 + y'^2)^{3/2}}$.
+- **Arbitrary-Degree B-Splines**: Uniform and clamped B-splines via Cox-de Boor recursion with exact cubic Bézier decomposition for degrees up to three and cubic approximation for higher degrees.
 - **High-Precision Arc Length**: 5-point Gauss-Legendre numerical quadrature with Newton-Raphson distance inversion ($s \mapsto t$).
 - **Homotopy & Morphing Operators**: Continuous curve deformations, intermediate parameter families, and directional deformation vector fields.
 - **Parallel Offset Curves**: Computes parallel offset curves $C(u) + d \cdot \mathbf{N}(u)$ with curvature-scaled tangent matching.
-- **CAD-Style Geometric Visualizers**: Curvature combs (spikes $\kappa \cdot \mathbf{N}$ connected by envelope curve), velocity tangent vectors, normal vectors, and control polygons.
+- **CAD-Style Geometric Visualizers**: Curvature combs (spikes $\kappa \cdot \mathbf{N}$ connected by envelope curve), unit tangent vectors, normal vectors, and control polygons.
 - **Seamless CeTZ Canvas Integration & Named Anchors**: Full anchor support (`name.start`, `name.end`, `name.mid`, `name.pt-<idx>`, `name.t(50%)`, `name.s(50%)`).
 
 ---
@@ -43,7 +42,7 @@ Or for local development:
 
 ```typst
 #import "@preview/cetz:0.5.3"
-#import "@local/cetz-spline:0.1.0" as cs
+#import "@preview/cetz-spline:0.1.0" as cs
 
 #cetz.canvas({
   import cetz.draw: *
@@ -69,7 +68,7 @@ Or for local development:
   circle("my-curve.pt-1", radius: 0.12, fill: orange)
   circle("my-curve.mid", radius: 0.12, fill: purple)
   circle("my-curve.s(50%)", radius: 0.12, fill: green)
-  content("my-curve.s(50%)", [Midpoint], anchor: cs.spline-label-anchor(sp, 0.5), padding: 0.15)
+  content("my-curve.s(50%)", [Midpoint], anchor: cs.spline-label-anchor-at-distance(sp, cs.spline-arc-length(sp) / 2), padding: 0.15)
 })
 ```
 
@@ -93,9 +92,9 @@ Or for local development:
 - `cs.spline-label-anchor(spline, t, side: 1)`: Recommended CeTZ `content` anchor angle to place labels along curve normals.
 
 ### Arc Length & Inversion
-- `cs.spline-arc-length(spline, t1: 0.0, t2: 1.0)`: True arc length via 5-point Gauss-Legendre quadrature.
+- `cs.spline-arc-length(spline, t1: 0.0, t2: 1.0)`: Numerical arc length via 5-point Gauss-Legendre quadrature.
 - `cs.spline-t-for-distance(spline, s)`: Newton-Raphson distance inversion $s \mapsto t$.
-- `cs.spline-point-at-distance(spline, s)`: Point at exact arc-length distance $s$.
+- `cs.spline-point-at-distance(spline, s)`: Point at numerical arc-length distance $s$.
 - `cs.spline-normal-angle-at-distance(spline, s)`: Normal vector angle at distance $s$.
 - `cs.spline-label-anchor-at-distance(spline, s, side: 1)`: Recommended CeTZ `content` anchor angle at distance $s$.
 
@@ -109,9 +108,9 @@ Or for local development:
 - `cs.offset(spline, distance, subdivide: true)`: Parallel normal offset curve.
 
 ### Drawing Elements (`cs.draw`)
-- `cs.draw.spline(spline-obj, name: none, stroke: 1pt + black, fill: none, close: false)`: CeTZ canvas element wrapper with anchor injection.
-- `cs.draw.draw-tangents(spline-obj, samples: 10, scale: 0.4, stroke: blue)`: Directed velocity arrows.
-- `cs.draw.draw-normals(spline-obj, samples: 10, scale: 0.4, stroke: red)`: Perpendicular Frenet normal vectors.
+- `cs.draw.spline(spline-obj, name: none, stroke: auto, fill: auto, close: false, mark: auto, ..style)`: CeTZ canvas element wrapper with anchor injection.
+- `cs.draw.draw-tangents(spline-obj, samples: 10, scale: 0.4, stroke: blue)`: Unit tangent arrows.
+- `cs.draw.draw-normals(spline-obj, samples: 10, scale: 0.4, stroke: red)`: Oriented left normal vectors.
 - `cs.draw.draw-curvature-comb(spline-obj, samples: 40, scale: 0.5, stroke: gray, envelope-stroke: red, fill: none)`: CAD curvature spikes with envelope.
 - `cs.draw.draw-control-polygon(spline-obj, stroke: dashed, pt-radius: 0.05)`: Control polygon hull.
 - `cs.draw.draw-homotopy(spline-a, spline-b, steps: 5, stroke-fn: (t) => ..., mode: "auto", samples: auto)`: Morphed intermediate curve family.
@@ -120,6 +119,8 @@ Or for local development:
 ---
 
 ## Testing
+
+GitHub Actions discovers every stable Typst release at or above the manifest compiler minimum and runs the full suite on each version on pushes, pull requests, and manual dispatches. Prereleases are excluded.
 
 A test script [`test.sh`](test.sh) is included to run all mathematical unit tests, knot verification, CeTZ canvas tests, and documentation compilation:
 
@@ -132,7 +133,7 @@ chmod +x test.sh
 
 ## Documentation
 
-A comprehensive, publication-grade manual is available both as Typst source ([`manual.typ`](manual.typ)) and pre-compiled PDF ([`manual.pdf`](manual.pdf)).
+A comprehensive, manual is available both as Typst source ([`manual.typ`](manual.typ)) and pre-compiled PDF ([`manual.pdf`](manual.pdf)).
 
 To compile locally:
 ```bash
@@ -144,3 +145,14 @@ typst compile --root . manual.typ manual.pdf
 ## License
 
 MIT License. See [LICENSE-MIT](LICENSE-MIT).
+
+## Conventions and limits
+
+Requires Typst 0.15.0 or newer and CeTZ 0.5.3. Until the package is accepted into Preview, use the local import shown above; the Preview import is the intended publication path.
+
+- Constructors accept numeric points, not CeTZ anchor names. Closed input lists omit the repeated final point.
+- Global `t` gives every cubic segment equal time. Use distance queries or `resample` for equal physical spacing. Attach `cs.with-lut(sp)` when making repeated distance queries.
+- `boundary: "clamped"` extrapolates endpoint chords; `"natural"` enforces zero endpoint second derivatives.
+- Lengths and distance inversion are numerical estimates. Higher-degree B-splines, offsets, and arc-length morphs are approximations with no certified error bound.
+- `draw.spline` inherits CeTZ styles, including stroke, fill, and marks. Set a style to `none` to disable it. Extra named styles such as `fill-rule` are forwarded to the merged path.
+- `close: true` on an existing open spline closes only the drawing with a straight edge. Construct with `closed: true` for a periodic curve and matching distance queries.

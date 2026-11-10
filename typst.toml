@@ -2,12 +2,12 @@
 name = "cetz-spline"
 version = "0.1.0"
 entrypoint = "src/lib.typ"
-authors = ["Typst Community Contributor"]
+authors = ["RythenGlyth"]
 license = "MIT"
-description = "Advanced mathematical splines, centripetal Catmull-Rom, curvature combs, arc-length parameterization, and homotopies for CeTZ."
-repository = "https://github.com/typst/cetz-spline"
+description = "Draw and analyze splines, offsets, and morphs with CeTZ."
+repository = "https://github.com/RythenGlyth/cetz-spline"
 keywords = ["cetz", "spline", "catmull-rom", "b-spline", "curvature", "homotopy", "geometry"]
-compiler = "0.11.0"
+compiler = "0.15.0"
 
-[dependencies]
-cetz = "0.5.3"
+categories = ["visualization"]
+exclude = ["tests", "test.sh", "manual.typ", "manual.pdf", "assets", ".github"]

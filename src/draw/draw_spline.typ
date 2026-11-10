@@ -2,7 +2,7 @@
 // CeTZ canvas element wrapper for splines with dynamic anchor resolution.
 
 #import "@preview/cetz:0.5.3"
-#import "../core/types.typ": assert-spline, is-spline
+#import "../core/types.typ": assert-spline
 #import "../core/catmull_rom.typ": spline-catmull
 #import "../core/bezier.typ": spline-eval
 #import "../core/arc_length.typ": spline-arc-length, spline-point-at-distance
@@ -12,13 +12,7 @@
   let s = str-val.trim()
   if s.ends-with("%") { s = s.slice(0, -1).trim() }
   if s.len() == 0 { return none }
-  let allowed = "0123456789.-+eE"
-  for c in s {
-    if not allowed.contains(c) { return none }
-  }
-  let dots = 0
-  for c in s { if c == "." { dots += 1 } }
-  if dots > 1 { return none }
+  if not s.contains(regex("^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$")) { return none }
   float(s)
 }
 
@@ -28,7 +22,7 @@
 /// - `"start"`, `"end"`, `"mid"`, `"default"`
 /// - `"pt-<idx>"`: Original control points or segment endpoints
 /// - `"t(<val>)"`: Normalized parameter space position (e.g. `"t(0.5)"`, `"t(50%)"`, `"t(33.3%)"`)
-/// - `"s(<val>)"`: Exact physical arc length position via Gauss-Legendre quadrature (e.g. `"s(0.5)"`, `"s(50%)"`)
+/// - `"s(<val>)"`: Numerical arc length fraction via Gauss-Legendre quadrature (e.g. `"s(0.5)"`, `"s(50%)"`)
 /// - `"50%"`, `"25%"`, `"75%"`: Shorthand percentage anchors
 /// - `"t-50"`, `"s-50"`, `"t-0_5"`, `"s-0_5"`: Alternate dash-syntax anchors
 ///
@@ -41,13 +35,14 @@
 #let spline(
   spline-obj,
   name: none,
-  stroke: 1pt + black,
-  fill: none,
+  stroke: auto,
+  fill: auto,
   close: false,
-  mark: none,
+  mark: auto,
   ..style,
 ) = {
   import cetz.draw: group, merge-path, bezier, anchor
+  assert(style.pos() == (), message: "Unexpected positional arguments")
 
   let sp = if type(spline-obj) == array {
     spline-catmull(spline-obj, closed: close)
@@ -116,7 +111,7 @@
           if v != none {
             let t = if is-pct or v > 1.0 { v / 100.0 } else { v }
             let p = spline-eval(sp, calc.clamp(t, 0.0, 1.0))
-            return (float(p.at(0)), float(p.at(1)), 0.0)
+            return cetz.util.apply-transform(ctx.transform, (float(p.at(0)), float(p.at(1)), 0.0))
           }
         }
 
@@ -129,7 +124,7 @@
             let ratio = if is-pct or v > 1.0 { v / 100.0 } else { v }
             let dist = calc.clamp(ratio, 0.0, 1.0) * total-l
             let p = spline-point-at-distance(sp, dist)
-            return (float(p.at(0)), float(p.at(1)), 0.0)
+            return cetz.util.apply-transform(ctx.transform, (float(p.at(0)), float(p.at(1)), 0.0))
           }
         }
 
@@ -141,7 +136,7 @@
           if v != none {
             let t = if is-pct or v > 1.0 { v / 100.0 } else { v }
             let p = spline-eval(sp, calc.clamp(t, 0.0, 1.0))
-            return (float(p.at(0)), float(p.at(1)), 0.0)
+            return cetz.util.apply-transform(ctx.transform, (float(p.at(0)), float(p.at(1)), 0.0))
           }
         }
 
@@ -153,7 +148,7 @@
             let ratio = if is-pct or v > 1.0 { v / 100.0 } else { v }
             let dist = calc.clamp(ratio, 0.0, 1.0) * total-l
             let p = spline-point-at-distance(sp, dist)
-            return (float(p.at(0)), float(p.at(1)), 0.0)
+            return cetz.util.apply-transform(ctx.transform, (float(p.at(0)), float(p.at(1)), 0.0))
           }
         }
 
@@ -162,7 +157,7 @@
           let v = _parse-float-or-none(k-str)
           if v != none {
             let p = spline-eval(sp, calc.clamp(v / 100.0, 0.0, 1.0))
-            return (float(p.at(0)), float(p.at(1)), 0.0)
+            return cetz.util.apply-transform(ctx.transform, (float(p.at(0)), float(p.at(1)), 0.0))
           }
         }
 
