@@ -66,6 +66,10 @@ count|count must be an integer >= 2
 lut|samples-per-segment must be a positive integer
 mode|Unknown homotopy mode
 topology|Homotopy requires matching open/closed topology
+transition-direction|start-tangent must have nonzero length
+transition-speed|end-speed must be a positive number
+transition-curvature|Endpoint curvatures must be numbers
+transition-coincident|start-speed must be a positive number
 CASES
 
 # Verify an installed package with only the runtime/distribution files.

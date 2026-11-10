@@ -33,6 +33,8 @@
   spline-label-anchor,
 )
 
+#import "core/hermite.typ": spline-hermite, spline-transition
+
 #import "core/catmull_rom.typ": (
   catmull-to-bezier-segments,
   spline-catmull,

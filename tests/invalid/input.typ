@@ -16,5 +16,9 @@
   else if case == "count" { cs.resample(sp, 1) }
   else if case == "lut" { cs.with-lut(sp, samples-per-segment: 0) }
   else if case == "mode" { cs.homotopy(sp, sp, 0, mode: "typo") }
+  else if case == "transition-direction" { cs.spline-transition((0, 0), (2, 1), start-tangent: (0, 0)) }
+  else if case == "transition-speed" { cs.spline-transition((0, 0), (2, 1), end-speed: 0) }
+  else if case == "transition-curvature" { cs.spline-transition((0, 0), (2, 1), start-curvature: "bad") }
+  else if case == "transition-coincident" { cs.spline-transition((0, 0), (0, 0), start-tangent: 0deg, end-tangent: 0deg) }
   else if case == "topology" { cs.homotopy(sp, cs.spline-catmull(pts, closed: true), 0.5) }
 }
