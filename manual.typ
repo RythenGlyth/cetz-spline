@@ -272,8 +272,13 @@ let sp = cs.spline-catmull(pts, alpha: 0.5)
 
 spline(sp, name: "c", stroke: 2pt + blue)
 circle("c.pt-1", radius: 0.15, fill: red)
+circle("c.pt-2", radius: 0.15, fill: red)
 circle("c.mid", radius: 0.15, fill: orange)
 circle("c.end", radius: 0.12, fill: black)
+content("c.pt-1", text(size: 8pt, fill: black)[P1], anchor: "south", padding: 7pt)
+content("c.pt-2", text(size: 8pt, fill: black)[P2], anchor: "north", padding: 7pt)
+content("c.mid", text(size: 8pt, fill: black)[Mid], anchor: "south-west", padding: 5pt)
+content("c.end", text(size: 8pt, fill: black)[End], anchor: "south-west", padding: 5pt)
 ```
 
 == Named Anchors
@@ -630,8 +635,84 @@ spline(sc-dir, stroke: (paint: purple, thickness: 1.2pt, dash: "dashed"))
     ("close", "bool", false),
   ),
   ret: "element",
-  [CeTZ canvas drawing element. Accepts either a spline dictionary or an array of points. Registers named anchors for CeTZ coordinate lookups.],
+  [CeTZ canvas drawing element. Accepts either a spline dictionary or an array of points. When a `name` is provided, automatically injects named anchors into CeTZ's coordinate resolution system.],
 )
+
+=== Named Anchors
+
+When a spline element is assigned a `name` (e.g. `spline(sp, name: "my-curve")`), CeTZ provides access to the following anchors via `"my-curve.<anchor>"`:
+
+#table(
+  columns: (1.4fr, 2.6fr),
+  stroke: 0.5pt + rgb("#e2e8f0"),
+  fill: (col, row) => if row == 0 { rgb("#f1f5f9") } else { none },
+  align: (col, row) => if col == 0 { left } else { left },
+  [#text(weight: "bold")[Anchor Name]], [#text(weight: "bold")[Description]],
+  [`"start"`, `"end"`], [First and last endpoints of the spline.],
+  [`"mid"`, `"default"`], [Midpoint evaluated at parameter $t = 0.5$ (`"default"` matches `"start"`).],
+  [`"pt-0"`, `"pt-1"`, ...], [Original control points or segment boundary endpoints.],
+  [`"t(0%)"`, `"t(50%)"`, ...], [Normalized parameter space position $t in [0, 1]$ in 5% steps (also `"t-0"`, `"t-50"`, `"t-100"`).],
+  [`"s(0%)"`, `"s(50%)"`, ...], [Normalized physical arc length position $s in [0, 1]$ via Gauss-Legendre quadrature (also `"s-0"`, `"s-50"`, `"s-100"`).],
+  [`"0%"`, `"50%"`, ...], [Shorthand aliases for parameter space positions.],
+)
+
+```example
+let sp = cs.spline-catmull(((0, 0), (1.5, 2.5), (3.5, 0.5), (5, 2)))
+spline(sp, name: "c", stroke: 2pt + rgb("#1d3557"))
+
+// Connect to endpoints and control points
+circle("c.start", radius: 0.12, fill: rgb("#0284c7"))
+content((rel: (-0.3, -0.3), to: "c.start"), text(size: 7.5pt, weight: "bold", fill: rgb("#0284c7"))["start"])
+
+circle("c.mid", radius: 0.12, fill: rgb("#7c3aed"))
+content((rel: (0, 0.35), to: "c.mid"), text(size: 7.5pt, weight: "bold", fill: rgb("#7c3aed"))["mid"])
+
+circle("c.end", radius: 0.12, fill: rgb("#0284c7"))
+content((rel: (0.3, -0.3), to: "c.end"), text(size: 7.5pt, weight: "bold", fill: rgb("#0284c7"))["end"])
+
+circle("c.pt-1", radius: 0.08, fill: orange)
+circle("c.pt-2", radius: 0.08, fill: orange)
+```
+
+=== Parameter Space (`.t()`) vs Arc-Length Space (`.s()`)
+
+A fundamental distinction in differential geometry is the difference between *polynomial parameter space* $t in [0, 1]$ and *physical arc-length space* $s in [0, 1]$:
+
+- *Parameter Space (`"t(X%)"`)*: Evaluates the polynomial parameter $t = X / 100$. Because cubic segments vary in geometric size and knot spans, equal parameter steps do *not* cover equal physical distances. Points cluster tightly where knot spans are short and spread out on long segments.
+- *Arc-Length Space (`"s(X%)"`)*: Evaluates the exact physical curve distance $s = (X / 100) dot L$ using 5-point Gauss-Legendre numerical quadrature with Newton-Raphson root inversion. Equal arc-length steps are physically equidistant along the curve.
+
+The example below demonstrates this divergence on an asymmetric spline. Notice the dashed alignment chords connecting identical percentage coordinates between parameter space $t$ (red) and physical arc length $s$ (teal):
+
+```example-vertical
+let pts = ((0, 0), (1, 2.8), (2.2, 0.4), (7.5, 2.6))
+let sp = cs.spline-catmull(pts, alpha: 0.5)
+
+spline(sp, name: "asym", stroke: 2.2pt + rgb("#0f172a"))
+
+// Compare t(p%) and s(p%) for 20%, 40%, 60%, 80%
+for p in (20, 40, 60, 80) {
+  let t-anc = "asym.t(" + str(p) + "%)"
+  let s-anc = "asym.s(" + str(p) + "%)"
+
+  // Connecting drift chord
+  line(t-anc, s-anc, stroke: (paint: gray, thickness: 0.7pt, dash: "dashed"))
+
+  // Parameter marker (red)
+  circle(t-anc, radius: 0.09, fill: rgb("#e63946"))
+  content((rel: (0, 0.32), to: t-anc), text(size: 6.5pt, fill: rgb("#e63946"), weight: "bold")[#str(p)% (t)])
+
+  // Arc-length marker (teal)
+  circle(s-anc, radius: 0.09, fill: rgb("#059669"))
+  content((rel: (0, -0.32), to: s-anc), text(size: 6.5pt, fill: rgb("#059669"), weight: "bold")[#str(p)% (s)])
+}
+
+// Legend
+rect((0.2, 4.4), (8.2, 3.5), stroke: 0.5pt + rgb("#cbd5e1"), fill: rgb("#fffffffa"), radius: 3pt)
+circle((0.6, 4.1), radius: 0.08, fill: rgb("#e63946"))
+content((0.9, 4.1), anchor: "west", text(size: 7pt)[.t(X%) - Polynomial parameter (clusters)])
+circle((0.6, 3.75), radius: 0.08, fill: rgb("#059669"))
+content((0.9, 3.75), anchor: "west", text(size: 7pt)[.s(X%) - Physical arc length (equidistant)])
+```
 
 #fn-doc(
   "draw.draw-tangents",
@@ -715,103 +796,140 @@ spline(sp, stroke: 2pt + black)
 #pagebreak()
 = Examples Gallery
 
-== Loop Homotopy ($f tilde.equiv f'$)
+== Aerodynamic Airfoil Profile & Curvature Comb
 
-Deforming a loop $f$ continuously through intermediate curves into a smaller homotopic loop $f'$ with deformation arrows.
-
-```example-vertical
-let f = cs.spline-catmull(((0, 0), (1.2, 2.5), (3, 2.2), (3.5, 0.5), (2, -1), (0, 0)), closed: true)
-let f-prime = cs.spline-catmull(((0, 0), (0.8, 1.2), (1.8, 1), (2, 0.2), (1, -0.4), (0, 0)), closed: true)
-
-draw-homotopy-field(f, f-prime, samples: 10, stroke: 0.6pt + rgb("#a8dadc"))
-draw-homotopy(f, f-prime, steps: 4, stroke-fn: (t) => 0.8pt + rgb(int(20 + t * 180), 60, int(80 + t * 80)))
-
-spline(f, stroke: 2pt + rgb("#1d3557"))
-spline(f-prime, stroke: 1.5pt + rgb("#e63946"))
-circle((0, 0), radius: 0.1, fill: black)
-content((0, -0.4), text(size: 8pt)[$x_0$])
-content((1.8, 2.7), text(size: 8pt)[$f$])
-content((1.8, 1.3), text(size: 8pt)[$f'$])
-```
-
-== Loop Concatenation ($f * g$)
-
-Two loops sharing the base point $x_0$, traversing $f$ in $[0, 1/2]$ and $g$ in $[1/2, 1]$.
+A transonic airfoil camber profile evaluated with centripetal Catmull-Rom splines. The CAD curvature comb along the upper suction surface visualizes aerodynamic acceleration, suction peak, and smooth pressure recovery towards the trailing edge.
 
 ```example-vertical
-let left = cs.spline-catmull(((0, 0), (-1.2, 1.8), (-2.4, 0.2), (-1.5, -1.2), (0, 0)), closed: true)
-let right = cs.spline-catmull(((0, 0), (1.2, 1.8), (2.4, 0.2), (1.5, -1.2), (0, 0)), closed: true)
+let upper-pts = ((0, 0), (0.35, 0.65), (1.2, 0.88), (2.8, 0.68), (4.5, 0.22), (5.5, 0))
+let lower-pts = ((0, 0), (0.5, -0.35), (1.8, -0.38), (3.4, -0.22), (5.5, 0))
 
-spline(left, stroke: 2pt + rgb("#457b9d"), fill: rgb("#457b9d15"))
-spline(right, stroke: 2pt + rgb("#e76f51"), fill: rgb("#e76f5115"))
-circle((0, 0), radius: 0.1, fill: black)
-content((0, -0.4), text(size: 8pt)[$x_0$])
-content((-1.5, 0.6), text(size: 8pt)[$f$])
-content((1.5, 0.6), text(size: 8pt)[$g$])
-```
+let upper = cs.spline-catmull(upper-pts, alpha: 0.5)
+let lower = cs.spline-catmull(lower-pts, alpha: 0.5)
 
-#pagebreak()
-== Seam Detachment (Ablösen der Nahtstelle)
+// Curvature comb on suction surface
+draw-curvature-comb(
+  upper,
+  samples: 45,
+  scale: 0.6,
+  stroke: 0.4pt + luma(180),
+  envelope-stroke: 1.2pt + rgb("#ef4444"),
+  fill: rgb("#ef444415"),
+)
 
-Homotopy that detaches the internal junction seam away from base point $x_0$, showing that loop concatenation is associative up to homotopy.
+// Airfoil body
+spline(upper, name: "suction", stroke: 2pt + rgb("#0f172a"))
+spline(lower, name: "pressure", stroke: 2pt + rgb("#0f172a"))
 
-```example-vertical
-let outer = cs.spline-catmull(((-2, 0), (-1, 2), (1, 2), (2, 0), (1, -1.2), (-1, -1.2)), closed: true)
-let seam = cs.spline-catmull(((0, -1.2), (0, 0), (0, 1.8)))
-let detached = cs.spline-catmull(((0, -0.5), (0.3, 0.2), (0, 1.8)))
+// Chord reference line
+line("suction.start", "suction.end", stroke: (paint: gray, thickness: 0.6pt, dash: "dashed"))
 
-spline(outer, stroke: 2pt + rgb("#264653"))
-draw-homotopy(seam, detached, steps: 3, stroke-fn: (t) => 0.8pt + rgb(160, int(80 * t), 130))
-spline(seam, stroke: (paint: rgb("#e63946"), thickness: 1.5pt, dash: "dashed"))
-spline(detached, stroke: 1.8pt + rgb("#2a9d8f"))
-circle((0, -1.2), radius: 0.1, fill: black)
-content((0, -1.6), text(size: 8pt)[$x_0$])
+// Annotations
+circle("suction.start", radius: 0.08, fill: rgb("#0284c7"))
+content((rel: (-0.6, 0.25), to: "suction.start"), text(size: 7pt, weight: "bold")[Leading Edge])
+
+circle("suction.end", radius: 0.08, fill: rgb("#0284c7"))
+content((rel: (0.7, 0.25), to: "suction.end"), text(size: 7pt, weight: "bold")[Trailing Edge])
 ```
 
 #pagebreak()
-== Mechanical Cam Profile Curvature Analysis
+== High-Speed Racetrack Corner & Banking Lanes
 
-Evaluating curvature continuity of a cam curve using `draw-curvature-comb`. Needle spikes $kappa(s) dot bold(N)(s)$ and the outer envelope indicate $C^2$ acceleration continuity.
+Generating a racing line chicane with parallel track boundaries and curbs using `cs.offset`. Braking, apex, and acceleration points are positioned at exact physical arc-length distances using `"s(X%)"` anchors.
+
+```example-vertical
+let track-pts = ((-4, -1.5), (-1.5, 1.4), (1, -1.0), (3.5, 1.6), (6.5, 0.2))
+let racing-line = cs.spline-catmull(track-pts, alpha: 0.5)
+
+// Track borders via parallel offset
+let outer-kerb = cs.offset(racing-line, 0.9)
+let inner-kerb = cs.offset(racing-line, -0.9)
+let left-lane = cs.offset(racing-line, 0.45)
+let right-lane = cs.offset(racing-line, -0.45)
+
+spline(outer-kerb, stroke: 1.8pt + rgb("#334155"))
+spline(left-lane, stroke: (paint: rgb("#cbd5e1"), thickness: 0.8pt, dash: "dashed"))
+spline(racing-line, name: "race", stroke: 2.2pt + rgb("#e63946"))
+spline(right-lane, stroke: (paint: rgb("#cbd5e1"), thickness: 0.8pt, dash: "dashed"))
+spline(inner-kerb, stroke: 1.8pt + rgb("#334155"))
+
+// Tangent vectors showing vehicle heading
+draw-tangents(racing-line, samples: 7, scale: 0.7, stroke: 1.2pt + rgb("#0284c7"))
+
+// Arc-length key positions
+circle("race.s(20%)", radius: 0.1, fill: rgb("#f59e0b"))
+content((rel: (0, 0.35), to: "race.s(20%)"), text(size: 6.5pt, weight: "bold", fill: rgb("#b45309"))[Braking Zone (s = 20%)])
+
+circle("race.s(50%)", radius: 0.12, fill: rgb("#10b981"))
+content((rel: (0, -0.38), to: "race.s(50%)"), text(size: 7pt, weight: "bold", fill: rgb("#047857"))[Corner Apex (s = 50%)])
+
+circle("race.s(80%)", radius: 0.1, fill: rgb("#3b82f6"))
+content((rel: (0, 0.35), to: "race.s(80%)"), text(size: 6.5pt, weight: "bold", fill: rgb("#1d4ed8"))[Exit Throttle (s = 80%)])
+```
+
+#pagebreak()
+== Mechanical Cam Profile & Roller Follower
+
+A closed $C^2$ cam profile evaluated with `draw-curvature-comb`. The needle spikes $kappa(s) dot bold(N)(s)$ and envelope verify acceleration smoothness, while a roller follower is positioned along the normal contact point.
 
 ```example-vertical
 let pts = (
-  (0, 1.5), (1.8, 2.8), (3.2, 1.2), (2.5, -1.5),
-  (0, -2.2), (-2.5, -1.5), (-3.2, 1.2), (-1.8, 2.8),
+  (0, 1.6), (1.8, 2.9), (3.2, 1.2), (2.5, -1.5),
+  (0, -2.2), (-2.5, -1.5), (-3.2, 1.2), (-1.8, 2.9),
 )
 let cam = cs.spline-catmull(pts, alpha: 0.5, closed: true)
 
-draw-curvature-comb(cam, samples: 60, scale: 0.8, stroke: 0.4pt + luma(160), envelope-stroke: 1.2pt + red, fill: rgb("#e6394612"))
-spline(cam, stroke: 2pt + rgb("#1d3557"), fill: rgb("#f1faee"))
+// Curvature comb
+draw-curvature-comb(
+  cam,
+  samples: 60,
+  scale: 0.8,
+  stroke: 0.4pt + luma(170),
+  envelope-stroke: 1.2pt + rgb("#ef4444"),
+  fill: rgb("#ef444412"),
+)
+
+// Cam body & base circle
+spline(cam, name: "cam-body", stroke: 2pt + rgb("#0f172a"), fill: rgb("#f8fafc"))
 circle((0, 0), radius: 0.1, fill: black)
-circle((0, 0), radius: 0.5, stroke: (paint: gray, thickness: 0.8pt, dash: "dashed"))
+circle((0, 0), radius: 0.6, stroke: (paint: gray, thickness: 0.7pt, dash: "dashed"))
+
+// Roller follower at peak displacement (s = 15%)
+let follower-contact = "cam-body.s(15%)"
+circle(follower-contact, radius: 0.08, fill: rgb("#0284c7"))
+line((0, 0), follower-contact, stroke: 0.6pt + rgb("#94a3b8"))
+content((rel: (0.4, 0.5), to: follower-contact), text(size: 7pt, weight: "bold", fill: rgb("#0284c7"))[Follower Contact])
 ```
 
 #pagebreak()
-== Highway Lane Banding
+== Shape Morphing (Homotopy Family & Flow Field)
 
-Generating parallel roadway lanes from a centerline spline using `cs.offset`.
+Continuous linear homotopy $(1-t) A + t B$ morphing between an elliptical teardrop profile and an undulating 4-lobed profile. The directional deformation vector field visualizes the displacement flux across the boundary.
 
 ```example-vertical
-let pts = ((-4, -1.2), (-1.5, 1.2), (1, -0.6), (3.5, 1.4), (6, 0))
-let center = cs.spline-catmull(pts, alpha: 0.5)
+let circle-pts = ((0, 2), (2, 0), (0, -2), (-2, 0))
+let lobe-pts = ((0, 2.5), (0.8, 0.8), (2.5, 0), (0.8, -0.8), (0, -2.5), (-0.8, -0.8), (-2.5, 0), (-0.8, 0.8))
 
-let left = cs.offset(center, 0.8)
-let right = cs.offset(center, -0.8)
-let left-lane = cs.offset(center, 0.4)
-let right-lane = cs.offset(center, -0.4)
+let base-shape = cs.spline-catmull(circle-pts, closed: true)
+let target-shape = cs.spline-catmull(lobe-pts, closed: true)
 
-spline(left, stroke: 2pt + black)
-spline(left-lane, stroke: (paint: orange, thickness: 1pt, dash: "dashed"))
-spline(center, stroke: 1.5pt + red)
-spline(right-lane, stroke: (paint: orange, thickness: 1pt, dash: "dashed"))
-spline(right, stroke: 2pt + black)
-draw-tangents(center, samples: 5, scale: 0.4, stroke: 1.2pt + blue)
+// Deformation arrows and intermediate morph family
+draw-homotopy-field(base-shape, target-shape, samples: 16, stroke: 0.6pt + rgb("#94a3b8"))
+draw-homotopy(
+  base-shape,
+  target-shape,
+  steps: 4,
+  stroke-fn: (t) => 0.9pt + rgb(int(15 + t * 200), int(120 - t * 60), int(180 - t * 100)),
+)
+
+spline(base-shape, stroke: 2pt + rgb("#0284c7"))
+spline(target-shape, stroke: 2pt + rgb("#ef4444"))
 ```
 
 #pagebreak()
 == Knot Exponent Comparison ($alpha$)
 
-Comparison of uniform ($alpha = 0.0$), centripetal ($alpha = 0.5$), and chordal ($alpha = 1.0$) interpolation over sharp non-uniform points. Centripetal parameterization eliminates the loop artifact visible in the uniform curve.
+Comparison of uniform ($alpha = 0.0$), centripetal ($alpha = 0.5$), and chordal ($alpha = 1.0$) Catmull-Rom parameterization over unevenly spaced control points. Centripetal parameterization mathematically eliminates the loop/cusp artifact present in the uniform curve.
 
 ```example-vertical
 let pts = ((-3.5, 0), (-1.2, 3), (-0.8, 0.2), (0.8, 0.2), (1.2, 3), (3.5, 0))
@@ -819,18 +937,39 @@ let sp-uni = cs.spline-catmull(pts, alpha: 0.0)
 let sp-cent = cs.spline-catmull(pts, alpha: 0.5)
 let sp-chord = cs.spline-catmull(pts, alpha: 1.0)
 
-spline(sp-uni, stroke: 1.5pt + red)
-spline(sp-cent, stroke: 2.2pt + rgb("#1d3557"))
-spline(sp-chord, stroke: 1.5pt + teal)
+spline(sp-uni, stroke: 1.5pt + rgb("#ef4444"))
+spline(sp-cent, stroke: 2.2pt + rgb("#0f172a"))
+spline(sp-chord, stroke: 1.5pt + rgb("#059669"))
 
 for p in pts { circle(p, radius: 0.08, fill: black) }
 
 // Legend
-rect((0.2, -0.7), (4.4, -1.9), stroke: 0.5pt + gray, fill: rgb("#fffffffa"))
-line((0.4, -0.9), (1.1, -0.9), stroke: 1.5pt + red)
-content((1.3, -0.9), anchor: "west", text(size: 7.5pt)[Uniform (alpha = 0.0) - Cusps])
-line((0.4, -1.3), (1.1, -1.3), stroke: 2.2pt + rgb("#1d3557"))
+rect((0.2, -0.7), (4.8, -1.9), stroke: 0.5pt + gray, fill: rgb("#fffffffa"), radius: 3pt)
+line((0.4, -0.9), (1.1, -0.9), stroke: 1.5pt + rgb("#ef4444"))
+content((1.3, -0.9), anchor: "west", text(size: 7.5pt)[Uniform (alpha = 0.0) - Unwanted cusps])
+line((0.4, -1.3), (1.1, -1.3), stroke: 2.2pt + rgb("#0f172a"))
 content((1.3, -1.3), anchor: "west", text(size: 7.5pt)[Centripetal (alpha = 0.5) - Cusp-free])
-line((0.4, -1.7), (1.1, -1.7), stroke: 1.5pt + teal)
+line((0.4, -1.7), (1.1, -1.7), stroke: 1.5pt + rgb("#059669"))
 content((1.3, -1.7), anchor: "west", text(size: 7.5pt)[Chordal (alpha = 1.0) - Smooth])
+```
+
+#pagebreak()
+== Turbomachinery Rotor Symmetry via Rotational Transforms
+
+A single master blade profile rotated symmetrically around a central hub using `cs.rotate-spline`. Because Bézier control handles transform rigidly under affine transformations, symmetry and arc lengths are preserved exactly.
+
+```example-vertical
+let blade-pts = ((0.6, 0.1), (1.3, 0.8), (2.4, 0.7), (3.2, 0.1))
+let blade = cs.spline-catmull(blade-pts, alpha: 0.5)
+
+// Central hub
+circle((0, 0), radius: 0.6, stroke: 1.5pt + rgb("#0f172a"), fill: rgb("#f1f5f9"))
+circle((0, 0), radius: 0.15, fill: rgb("#0f172a"))
+
+// 6-blade rotor cascade
+for i in range(6) {
+  let rot-blade = cs.rotate-spline(blade, i * 60deg, origin: (0, 0))
+  let clr = rgb(int(20 + i * 35), 80, int(180 - i * 20))
+  spline(rot-blade, stroke: 1.8pt + clr)
+}
 ```

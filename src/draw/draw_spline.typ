@@ -82,27 +82,35 @@
         }
       }
 
-      // 3. Normalized parameter anchors: t(X%), s(X%), X%
+      // 3. Normalized parameter anchors: t(X%), s(X%), X%, t-X, s-X
       let total-l = spline-arc-length(sp)
       let ratios = (
-        (0.0, "0%"),
-        (0.1, "10%"),
-        (0.2, "20%"),
-        (0.25, "25%"),
-        (0.3, "30%"),
-        (0.333, "33%"),
-        (0.4, "40%"),
-        (0.5, "50%"),
-        (0.6, "60%"),
-        (0.667, "67%"),
-        (0.7, "70%"),
-        (0.75, "75%"),
-        (0.8, "80%"),
-        (0.9, "90%"),
-        (1.0, "100%"),
+        (0.00, "0%", "0"),
+        (0.05, "5%", "5"),
+        (0.10, "10%", "10"),
+        (0.15, "15%", "15"),
+        (0.20, "20%", "20"),
+        (0.25, "25%", "25"),
+        (0.30, "30%", "30"),
+        (0.3333, "33%", "33"),
+        (0.35, "35%", "35"),
+        (0.40, "40%", "40"),
+        (0.45, "45%", "45"),
+        (0.50, "50%", "50"),
+        (0.55, "55%", "55"),
+        (0.60, "60%", "60"),
+        (0.65, "65%", "65"),
+        (0.6667, "67%", "67"),
+        (0.70, "70%", "70"),
+        (0.75, "75%", "75"),
+        (0.80, "80%", "80"),
+        (0.85, "85%", "85"),
+        (0.90, "90%", "90"),
+        (0.95, "95%", "95"),
+        (1.00, "100%", "100"),
       )
 
-      for (r, r-str) in ratios {
+      for (r, r-str, r-num) in ratios {
         let pt-t = spline-eval(sp, r)
         let pt-s = if total-l > 1e-9 {
           spline-point-at-distance(sp, r * total-l)
@@ -113,13 +121,17 @@
         anchor("t(" + r-str + ")", pt-t)
         anchor("s(" + r-str + ")", pt-s)
         anchor(r-str, pt-t)
+        anchor("t-" + r-num, pt-t)
+        anchor("s-" + r-num, pt-s)
       }
 
-      // Underscore notation: t-0_5, s-0_5
+      // Decimal notation convenience: t-0_5, s-0_5
       anchor("t-0_5", p-mid)
       anchor("s-0_5", if total-l > 1e-9 { spline-point-at-distance(sp, 0.5 * total-l) } else { p-mid })
       anchor("t-0_25", spline-eval(sp, 0.25))
+      anchor("s-0_25", if total-l > 1e-9 { spline-point-at-distance(sp, 0.25 * total-l) } else { spline-eval(sp, 0.25) })
       anchor("t-0_75", spline-eval(sp, 0.75))
+      anchor("s-0_75", if total-l > 1e-9 { spline-point-at-distance(sp, 0.75 * total-l) } else { spline-eval(sp, 0.75) })
     }
   }
 
