@@ -1,493 +1,743 @@
 // manual.typ
-// Complete Reference Manual and Example Gallery for cetz-spline
+// Reference Manual for cetz-spline
+// Follows the official CeTZ documentation architecture
 
 #import "@preview/cetz:0.5.3"
 #import "src/lib.typ" as cs
 
 #set document(
-  title: "cetz-spline: Advanced Curve Geometry & Splines for CeTZ",
+  title: "cetz-spline Manual",
   author: "Typst Community Contributor",
 )
 
 #set page(
   paper: "a4",
-  margin: (top: 2.5cm, bottom: 2.5cm, left: 2.5cm, right: 2.5cm),
+  margin: (x: 2.2cm, top: 2.5cm, bottom: 2.5cm),
   header: context {
     let i = counter(page).get().first()
     if i > 1 [
       #grid(
         columns: (1fr, 1fr),
-        align(left)[#text(size: 8pt, fill: luma(120), font: "Liberation Sans", weight: "bold")[cetz-spline 0.1.0]],
-        align(right)[#text(size: 8pt, fill: luma(120), font: "Liberation Sans")[Reference Manual & Guide]],
+        align(left)[#text(size: 8.5pt, fill: luma(100), font: "Liberation Sans")[cetz-spline]],
+        align(right)[#text(size: 8.5pt, fill: luma(100), font: "Liberation Sans")[Manual]],
       )
-      #line(length: 100%, stroke: 0.4pt + luma(200))
+      #v(-4pt)
+      #line(length: 100%, stroke: 0.5pt + luma(200))
     ]
   },
   footer: context {
     let i = counter(page).get().first()
     if i > 1 [
-      #line(length: 100%, stroke: 0.4pt + luma(200))
+      #line(length: 100%, stroke: 0.5pt + luma(200))
+      #v(2pt)
       #grid(
         columns: (1fr, 1fr),
-        align(left)[#text(size: 8pt, fill: luma(120))[Documentation]],
-        align(right)[#text(size: 8pt, fill: luma(120))[Page #i]],
+        align(left)[#text(size: 8.5pt, fill: luma(100), font: "Liberation Sans")[cetz-spline 0.1.0]],
+        align(right)[#text(size: 8.5pt, fill: luma(100), font: "Liberation Sans", weight: "bold")[#i]],
       )
     ]
   },
 )
 
-#set text(font: "Liberation Serif", size: 10.5pt, lang: "en")
-#set par(justify: true, leading: 0.7em)
-#show raw: set text(font: "Liberation Mono", size: 9pt)
+#set text(font: "Liberation Serif", size: 10pt, lang: "en")
+#set par(justify: true, leading: 0.65em)
+#show raw: set text(font: "Liberation Mono", size: 8.8pt)
 
-// Styling helpers
-#let primary = rgb("#1d3557")
-#let secondary = rgb("#457b9d")
-#let accent = rgb("#e63946")
-#let bg-box = rgb("#f8f9fa")
+#set heading(numbering: (..nums) => {
+  let nums = nums.pos()
+  if nums.len() <= 2 {
+    return nums.map(n => [#n]).join([.])
+  }
+})
 
-#let code-box(title, body) = block(
-  width: 100%,
-  stroke: 0.6pt + luma(200),
-  radius: 4pt,
-  fill: bg-box,
-  inset: 10pt,
-  [
-    #if title != none [
-      #text(weight: "bold", size: 9pt, fill: primary)[#title]
-      #v(4pt)
-    ]
-    #body
-  ]
+// CeTZ-native type pill colors
+#let type-colors = (
+  "any": rgb("#eff0f3"),
+  "content": rgb("#a6ebe6"),
+  "str": rgb("#d1ffe2"),
+  "string": rgb("#d1ffe2"),
+  "none": rgb("#ffcbc4"),
+  "auto": rgb("#ffcbc4"),
+  "bool": rgb("#ffedc1"),
+  "boolean": rgb("#ffedc1"),
+  "int": rgb("#e7d9ff"),
+  "integer": rgb("#e7d9ff"),
+  "float": rgb("#e7d9ff"),
+  "number": rgb("#e7d9ff"),
+  "function": rgb("#f9dfff"),
+  "array": rgb("#e7d9ff"),
+  "spline": rgb("#dbeafe"),
+  "element": rgb("#fed7aa"),
+  "coordinate": rgb("#fef08a"),
+  "point": rgb("#e0e7ff"),
+  "vector": rgb("#e0e7ff"),
+  "stroke": rgb("#e2e8f0"),
+  "paint": rgb("#fbcfe8"),
 )
 
-#let api-doc(name, sig, desc, args: (:)) = block(
+#let show-type(name) = {
+  box(
+    raw(name),
+    inset: (x: 3.5pt, y: 1.5pt),
+    baseline: 1pt,
+    radius: 2pt,
+    fill: type-colors.at(name, default: type-colors.at("any")),
+    stroke: none,
+  )
+}
+
+#let render-example(code, vertical: false) = {
+  let columns = if vertical { (1fr,) } else { (1fr, 1.4fr) }
+  let alignments = if vertical {
+    (x, y) => (center + top, left + top).at(y)
+  } else {
+    (x, y) => (center + horizon, left + top).at(x)
+  }
+  let line = if vertical { table.hline } else { table.vline }
+
+  block(
+    radius: 3pt,
+    stroke: 0.8pt + luma(180),
+    fill: rgb("#fafafa"),
+    breakable: false,
+    {
+      table(
+        columns: columns,
+        align: alignments,
+        stroke: none,
+        inset: 9pt,
+        cetz.canvas({
+          let preamble = "import cetz.draw: *\nimport cs.draw: *\n"
+          eval("{\n" + preamble + code + "\n}", mode: "code", scope: (
+            cetz: cetz,
+            cs: cs,
+          ))
+        }),
+        line(stroke: (paint: luma(180), thickness: 0.8pt, dash: "dashed")),
+        raw(code.trim(), lang: "typc"),
+      )
+    }
+  )
+}
+
+#show raw.where(lang: "example"): it => render-example(it.text)
+#show raw.where(lang: "example-vertical"): it => render-example(it.text, vertical: true)
+
+// Function documentation layout (CeTZ manual style)
+#let fn-doc(
+  name,
+  args: (),
+  ret: none,
+  description,
+  parameters: (),
+) = block(
+  breakable: false,
   width: 100%,
-  stroke: (left: 3pt + secondary),
-  inset: (left: 10pt, y: 6pt),
-  above: 8pt,
-  below: 8pt,
-  [
-    #text(weight: "bold", size: 11pt, fill: primary)[#raw(name)]
-    #h(6pt)
-    #text(fill: luma(100), size: 9pt)[#raw(sig)]
-    #v(2pt)
-    #desc
-    #if args.len() > 0 [
-      #v(3pt)
-      #text(weight: "semibold", size: 9pt)[Arguments:]
-      #list(
-        ..args.pairs().map(((k, v)) => [
-          #raw(k): #v
+  above: 1.6em,
+  below: 1.2em,
+  {
+    // Signature
+    block(
+      fill: rgb("#f4f7fb"),
+      inset: (x: 8pt, y: 6pt),
+      radius: 3pt,
+      stroke: (left: 3pt + rgb("#2b6cb0")),
+      {
+        text(rgb("#1a4971"), weight: "bold", raw(name))
+        raw("(")
+        if args.len() > 0 {
+          [\ ]
+          for arg in args {
+            h(1.2em)
+            raw(arg.at(0))
+            if arg.len() > 1 and arg.at(1) != none {
+              [ ]
+              show-type(arg.at(1))
+            }
+            if arg.len() > 2 and arg.at(2) != none {
+              text(luma(100))[#raw(" = " + repr(arg.at(2)))]
+            }
+            if arg != args.last() [,\ ] else [\ ]
+          }
+        }
+        raw(")")
+        if ret != none [
+          #h(4pt) #sym.arrow.r #h(4pt) #show-type(ret)
+        ]
+      }
+    )
+
+    v(0.3em)
+    description
+
+    if parameters.len() > 0 {
+      v(0.4em)
+      text(weight: "bold", size: 8.8pt)[Parameters]
+      list(
+        ..parameters.map(p => [
+          #strong(raw(p.at(0))) #show-type(p.at(1)) \
+          #p.at(2)
         ])
       )
-    ]
-  ]
+    }
+  }
 )
 
-// Title block
+// =========================================================================
+// TITLE & METADATA
+// =========================================================================
+
+#v(1.2em)
 #align(center)[
-  #v(1cm)
-  #text(size: 26pt, weight: "bold", fill: primary)[cetz-spline]
-  #v(4pt)
-  #text(size: 14pt, fill: secondary)[Advanced Curve Geometry & Splines for CeTZ]
-  #v(12pt)
+  #text(2.4em, weight: "bold", font: "Liberation Sans")[cetz-spline]
+  #v(0.3em)
+  #text(1.15em, fill: rgb("#334155"), font: "Liberation Sans")[Advanced Curve Geometry and Splines for CeTZ]
+
+  #v(0.8em)
   #grid(
     columns: (auto, auto, auto, auto),
-    gutter: 18pt,
+    gutter: 2.2em,
     [#text(weight: "bold")[Version:] 0.1.0],
-    [#text(weight: "bold")[Typst:] #sym.gt.eq 0.11.0],
+    [#text(weight: "bold")[Compiler:] #sym.gt.eq 0.11.0],
     [#text(weight: "bold")[CeTZ:] 0.5.3],
     [#text(weight: "bold")[License:] MIT],
   )
-  #v(1cm)
 ]
 
-#outline(indent: 1.5em)
+#v(1.5em)
+#columns(2, outline(depth: 3))
 #pagebreak()
 
-= 1. Project Overview & Philosophy
+// =========================================================================
+// 1. OVERVIEW
+// =========================================================================
 
-`cetz-spline` provides a mathematically rigorous, extensible spline evaluation and geometric visualization library for Typst and CeTZ.
+= Overview
 
-=== Design Principles:
+`cetz-spline` provides a mathematically rigorous spline and curve geometry library built specifically for the CeTZ canvas ecosystem.
 
-1. *Zero Redundancy with CeTZ Core*:
-   CeTZ already contains robust 2D/3D vector mathematics (`cetz.vector`), basic cubic Bézier evaluation (`cubic-point`, `cubic-derivative`), and de Casteljau subdivision (`cetz.bezier.split`). `cetz-spline` directly builds upon these foundations without re-inventing basic primitives.
+CeTZ already includes 2D/3D vector mathematics (`cetz.vector`), basic cubic Bézier evaluation (`cubic-point`, `cubic-derivative`), and de Casteljau curve splitting (`split`). `cetz-spline` directly re-uses those primitives and focuses strictly on higher-order geometric operations that CeTZ does not provide:
 
-2. *Focus on Novel Geometric Capabilities*:
-   - *Centripetal & Chordal Catmull-Rom Parameterization* ($alpha = 0.5, 1.0$) to eliminate cusps, self-intersections, and overshoot artifacts (CeTZ only supports uniform $alpha = 0$).
-   - *Second Derivatives & Curvature Fields*: Acceleration $C''(u)$, Frenet unit normal $bold(N)(u)$, and signed curvature $kappa(u)$.
-   - *Arbitrary-Degree B-Splines*: Clamped and periodic B-splines via Cox-de Boor recursion with exact cubic Bézier decomposition.
-   - *High-Precision Arc Length*: 5-point Gauss-Legendre quadrature with Newton-Raphson distance inversion ($s |-> t$).
-   - *Homotopy & Morphing Operators*: Topological loop deformations, intermediate parameter families, and directional deformation vector fields.
-   - *Geometric Visualizers*: CAD-style curvature combs, velocity tangent fields, and normal fields.
+- *Centripetal and Chordal Catmull-Rom Parameterization* ($alpha = 0.5, 1.0$): CeTZ only implements uniform Catmull-Rom ($alpha = 0$), which produces self-intersections and loops around sharp corners. Centripetal parameterization mathematically prevents cusps and local self-intersections.
+- *Second Derivatives and Curvature Fields*: Continuous acceleration vectors $C''(u)$, Frenet unit normal fields $bold(N)(u)$, and signed scalar curvature $kappa(u)$.
+- *Arbitrary-Degree B-Splines*: Cox-de Boor recursion with exact conversion to cubic Bézier segments for clamped and periodic knot vectors.
+- *High-Precision Arc Length*: 5-point Gauss-Legendre numerical quadrature with Newton-Raphson distance inversion ($s |-> t$).
+- *Parallel Offset Curves*: Normal-offset curves $C(u) + d dot bold(N)(u)$ with curvature-scaled tangent matching.
+- *Homotopies and Deformation Vector Fields*: Morphing families $(1-t) A + t B$ and directional deformation vectors connecting curves at equal arc-length fractions.
+- *CAD-Style Geometric Visualizers*: Curvature needles and envelope curves, velocity vectors, normal fields, and control polygons.
 
----
+== CeTZ Integration Audit
 
-= 2. Quick Start Guide
+The following table summarizes the boundary between CeTZ core and `cetz-spline`:
 
-== Installation & Import
+#table(
+  columns: (auto, auto, auto, 1fr),
+  stroke: (x, y) => if y == 0 { (bottom: 1pt + black) } else { (bottom: 0.3pt + luma(200)) },
+  fill: (x, y) => if y == 0 { rgb("#f5f5f5") } else { none },
+  inset: (x: 6pt, y: 4.5pt),
+  [#strong[Capability]], [#strong[Origin]], [#strong[Location]], [#strong[Description]],
+  [Vector math], [CeTZ], [`cetz.vector`], [Vector addition, subtraction, scaling, length, dot product.],
+  [Bézier point evaluation], [CeTZ], [`cetz.util.bezier.cubic-point`], [Evaluates $C(u)$ at parameter $u in [0, 1]$.],
+  [Velocity vector], [CeTZ], [`cetz.util.bezier.cubic-derivative`], [Evaluates $C'(u) = frac(d C, d u)$.],
+  [Curve subdivision], [CeTZ], [`cetz.util.bezier.split`], [De Casteljau subdivision at parameter $u$.],
+  [*Second derivative*], [*cetz-spline*], [`cs.cubic-second-derivative`], [Acceleration vector $C''(u) = frac(d^2 C, d u^2)$.],
+  [*Curvature $kappa(u)$*], [*cetz-spline*], [`cs.cubic-curvature`], [Signed scalar curvature $frac(x' y'' - y' x'', (x'^2 + y'^2)^(3/2))$.],
+  [*Frenet normal $bold(N)(u)$*], [*cetz-spline*], [`cs.cubic-normal`], [Unit normal vector field $(-T_y, T_x)$.],
+  [*Centripetal Catmull-Rom*], [*cetz-spline*], [`cs.spline-catmull`], [Yuksel (2011) $alpha = 0.5$ knot allocation; prevents cusps.],
+  [*Arbitrary B-Splines*], [*cetz-spline*], [`cs.spline-bspline`], [Cox-de Boor recursion with exact Bézier decomposition.],
+  [*Arc-length quadrature*], [*cetz-spline*], [`cs.spline-arc-length`], [5-point Gauss-Legendre quadrature for exact curve length.],
+  [*Arc-length inversion*], [*cetz-spline*], [`cs.spline-t-for-distance`], [Newton-Raphson solver for physical distance $s |-> t$.],
+  [*Parallel offset curves*], [*cetz-spline*], [`cs.offset`], [Parallel normal offset with curvature-matched velocity.],
+  [*Homotopy morphing*], [*cetz-spline*], [`cs.homotopy`], [Topological loop deformation and intermediate families.],
+  [*Curvature combs*], [*cetz-spline*], [`cs.draw.draw-curvature-comb`], [CAD-style curvature needles with envelope spline.],
+)
 
-To use `cetz-spline` with local package resolution:
+= Getting Started
+
+== Usage
+
+Import `cetz` and `cetz-spline` into your document:
 
 ```typst
 #import "@preview/cetz:0.5.3"
-#import "@local/cetz-spline:0.1.0" as cs
+#import "@preview/cetz-spline:0.1.0" as cs
 ```
 
-== Minimal Working Example
+Spline rendering functions are typically called inside a CeTZ canvas block:
 
-Creating a centripetal Catmull-Rom spline and visualizing it with CeTZ:
+```example
+let pts = ((0, 0), (1.5, 2.5), (3.5, 0.5), (5, 2))
+let sp = cs.spline-catmull(pts, alpha: 0.5)
 
-#grid(
-  columns: (3fr, 2fr),
-  gutter: 12pt,
-  [
-```typst
-#cetz.canvas({
-  import cetz.draw: *
-  import cs.draw: spline
-
-  let pts = (
-    (0.0, 0.0),
-    (1.5, 2.5),
-    (3.5, 0.5),
-    (5.0, 2.0),
-  )
-  let sp = cs.spline-catmull(pts, alpha: 0.5)
-
-  spline(sp, name: "my-curve", stroke: 2pt + blue)
-  circle("my-curve.pt-1", radius: 0.15, fill: red)
-  circle("my-curve.mid", radius: 0.15, fill: orange)
-})
+spline(sp, name: "c", stroke: 2pt + blue)
+circle("c.pt-1", radius: 0.15, fill: red)
+circle("c.mid", radius: 0.15, fill: orange)
+circle("c.end", radius: 0.12, fill: black)
 ```
-  ],
-  align(center + horizon)[
-    #cetz.canvas({
-      import cetz.draw: *
-      import cs.draw: spline
 
-      let pts = ((0.0, 0.0), (1.5, 2.5), (3.5, 0.5), (5.0, 2.0))
-      let sp = cs.spline-catmull(pts, alpha: 0.5)
+== Named Anchors
 
-      spline(sp, name: "my-curve", stroke: 2pt + rgb("#1d3557"))
-      circle("my-curve.pt-1", radius: 0.15, fill: rgb("#e63946"))
-      circle("my-curve.mid", radius: 0.15, fill: rgb("#f4a261"))
-    })
-  ]
-)
+When `name: "..."` is passed to `cs.draw.spline`, the following named anchors are injected:
+- `"start"`, `"end"`: curve extremities
+- `"mid"`: midpoint at global parameter $t = 0.5$
+- `"pt-<idx>"`: original control points (`"pt-0"`, `"pt-1"`, ...)
+- `"t(X%)"`: position at parameter ratio (e.g. `"t(25%)"`, `"t(50%)"`, `"t(75%)"`)
+- `"s(X%)"`: position at exact physical arc-length ratio (e.g. `"s(50%)"`)
+- `"50%"`, `"25%"`, `"75%"`: standard CeTZ path percentage anchors
 
----
+= Mathematical Concepts
 
-= 3. Core Mathematical Concepts
+== Spline Data Representation
 
-== 3.1. The Spline Dictionary Representation
-
-Every curve in `cetz-spline` is represented as an immutable dictionary:
+Every curve in `cetz-spline` is represented by an immutable dictionary:
 
 ```typst
 #let make-spline(
   type: "catmull-rom",       // "catmull-rom" | "bspline" | "homotopy" | "offset"
-  pts: (),                   // Array of original control points
+  pts: (),                   // Array of original input points
   closed: false,             // bool
-  meta: (:),                 // Metadata: (alpha: 0.5, degree: 3, ...)
-  segments: (),              // Native CeTZ Bézier segments: ((s, e, c1, c2), ...)
+  meta: (:),                 // Spline parameters (alpha, degree, knots, etc.)
+  segments: (),              // Array of native CeTZ cubic Bézier segments ((s, e, c1, c2), ...)
   lut: none,                 // Cached arc-length lookup table
 )
 ```
 
-Each segment inside `segments` follows CeTZ's standard format:
+Each segment inside `segments` follows CeTZ's standard Bézier tuple:
 $ (bold(s), bold(e), bold(c)_1, bold(c)_2) $
-where $bold(s)$ is the starting point, $bold(e)$ is the end point, $bold(c)_1$ is the first control point, and $bold(c)_2$ is the second control point.
+where $bold(s)$ is the starting point, $bold(e)$ is the end point, and $bold(c)_1, bold(c)_2$ are control handles.
 
-== 3.2. Why Centripetal ($alpha = 0.5$) Parameterization Matters
+== Centripetal Catmull-Rom Parameterization
 
-Given consecutive control points $bold(P)_0, bold(P)_1, bold(P)_2, bold(P)_3$, knot intervals are computed as:
+For four consecutive interpolation points $bold(P)_0, bold(P)_1, bold(P)_2, bold(P)_3$, knot intervals are computed as:
 $ t_0 = 0, quad t_(i+1) = t_i + ||bold(P)_(i+1) - bold(P)_i||^alpha $
-- $alpha = 0.0$: *Uniform Catmull-Rom* (known for sharp loops, self-intersections, and overshoot at sharp corners).
-- $alpha = 0.5$: *Centripetal Catmull-Rom* (theoretically proven to never self-intersect within segments and prevents cusps).
-- $alpha = 1.0$: *Chordal Catmull-Rom* (follows chord length, gentler curves).
+where:
+- $alpha = 0.0$: Uniform Catmull-Rom. Susceptible to self-intersections and cusps when distance between adjacent points varies significantly.
+- $alpha = 0.5$: Centripetal Catmull-Rom (default). Proven by Yuksel et al. (2011) to be cusp-free and self-intersection-free within segments.
+- $alpha = 1.0$: Chordal Catmull-Rom. Knots are proportional to Euclidean chord length.
 
-#align(center)[
-  #cetz.canvas({
-    import cetz.draw: *
-    import cs.draw: *
+The Bézier control points between $bold(P)_1$ and $bold(P)_2$ are obtained by evaluating the endpoint derivatives:
+$ bold(B)_0 = bold(P)_1 $
+$ bold(B)_1 = bold(P)_1 + frac(t_2 - t_1, 3) [ frac(t_2 - t_1, t_2 - t_0) frac(bold(P)_1 - bold(P)_0, t_1 - t_0) + frac(t_1 - t_0, t_2 - t_0) frac(bold(P)_2 - bold(P)_1, t_2 - t_1) ] $
+$ bold(B)_2 = bold(P)_2 - frac(t_2 - t_1, 3) [ frac(t_3 - t_2, t_3 - t_1) frac(bold(P)_2 - bold(P)_1, t_2 - t_1) + frac(t_2 - t_1, t_3 - t_1) frac(bold(P)_3 - bold(P)_2, t_3 - t_2) ] $
+$ bold(B)_3 = bold(P)_2 $
 
-    let pts = ((0.0, 0.0), (1.0, 3.5), (1.5, 0.2), (4.0, 0.0))
-    let sp-uni = cs.spline-catmull(pts, alpha: 0.0)
-    let sp-cent = cs.spline-catmull(pts, alpha: 0.5)
-    let sp-chord = cs.spline-catmull(pts, alpha: 1.0)
+== Curvature and Normal Vectors
 
-    spline(sp-uni, stroke: 1.5pt + rgb("#e63946"))
-    spline(sp-cent, stroke: 2pt + rgb("#1d3557"))
-    spline(sp-chord, stroke: 1.5pt + rgb("#2a9d8f"))
+The unit tangent vector is $bold(T)(u) = frac(C'(u), ||C'(u)||)$. The Frenet unit normal vector $bold(N)(u)$ points 90 degrees counter-clockwise from $bold(T)(u)$:
+$ bold(N)(u) = (-T_y(u), T_x(u)) $
 
-    for pt in pts {
-      circle(pt, radius: 0.08, fill: black)
-    }
+Signed scalar curvature $kappa(u)$ is:
+$ kappa(u) = frac(x'(u) y''(u) - y'(u) x''(u), (x'(u)^2 + y'(u)^2)^(3/2)) $
+Curvature is positive when the curve bends to the left (counter-clockwise) and negative when bending to the right (clockwise).
 
-    // Legend
-    rect((4.2, 2.5), (6.8, 1.0), stroke: 0.5pt + gray, fill: rgb("#ffffffcc"))
-    line((4.4, 2.2), (5.0, 2.2), stroke: 1.5pt + rgb("#e63946"))
-    content((5.1, 2.2), anchor: "west", text(size: 8pt)[Uniform ($alpha = 0$)])
-    line((4.4, 1.8), (5.0, 1.8), stroke: 2pt + rgb("#1d3557"))
-    content((5.1, 1.8), anchor: "west", text(size: 8pt)[Centripetal ($alpha = 0.5$)])
-    line((4.4, 1.4), (5.0, 1.4), stroke: 1.5pt + rgb("#2a9d8f"))
-    content((5.1, 1.4), anchor: "west", text(size: 8pt)[Chordal ($alpha = 1.0$)])
-  })
-]
+== Arc-Length Quadrature and Inversion
 
-== 3.3. Exact Arc-Length vs. Parametric $t$
+Curve speed $||C'(t)||$ varies along polynomial splines. Arc length between parameters $a$ and $b$ is evaluated using 5-point Gauss-Legendre quadrature:
+$ integral_a^b ||C'(u)|| d u approx frac(b - a, 2) sum_(i=1)^5 w_i ||C'(frac(a+b, 2) + frac(b-a, 2) x_i)|| $
 
-Parametric speed $||C'(t)||$ along polynomial splines is rarely constant. Placing objects at uniform intervals in $t$ causes crowding where the curve moves slowly and sparse spacing where it accelerates.
-`cetz-spline` evaluates true geometric arc length via 5-point Gauss-Legendre quadrature:
-$ s(u) = integral_0^u ||C'(tau)|| d tau approx frac(u, 2) sum_(i=1)^5 w_i ||C'(frac(u(1 + x_i), 2))|| $
-Inversion $s |-> t$ uses quadratically convergent Newton-Raphson:
+with weights and abscissae:
+$ x_1 = 0, quad w_1 = frac(128, 225) approx 0.568889 $
+$ x_(2,3) = plus.minus sqrt(frac(5 - 2 sqrt(10/7), 9)) approx plus.minus 0.538469, quad w_(2,3) = frac(322 + 13 sqrt(70), 900) approx 0.478629 $
+$ x_(4,5) = plus.minus sqrt(frac(5 + 2 sqrt(10/7), 9)) approx plus.minus 0.906180, quad w_(4,5) = frac(322 - 13 sqrt(70), 900) approx 0.236927 $
+
+To map physical distance $s$ back to parameter $t$, Newton-Raphson iteration is performed:
 $ u_(k+1) = u_k - frac(s(u_k) - s_("target"), ||C'(u_k)||) $
 
----
+= API Reference
 
-= 4. Complete API Reference
+== Spline Constructors
 
-== 4.1. Spline Constructors
-
-#api-doc(
+#fn-doc(
   "spline-catmull",
-  "(points, alpha: 0.5, closed: false, boundary: \"clamped\")",
-  [Constructs an $alpha$-parameterized Catmull-Rom spline through the specified points.],
   args: (
-    "points": [Array of 2D coordinates `((x0, y0), (x1, y1), ...)`],
-    "alpha": [Knot exponent: `0.0` (uniform), `0.5` (centripetal, default), `1.0` (chordal)],
-    "closed": [Whether curve forms a closed periodic loop (`bool`)],
-    "boundary": [Ghost point boundary condition: `"clamped"` (default) or `"natural"`],
+    ("points", "array"),
+    ("alpha", "float", 0.5),
+    ("closed", "bool", false),
+    ("boundary", "str", "clamped"),
+  ),
+  ret: "spline",
+  [Constructs a Catmull-Rom spline through a list of points using generalized knot spacing.],
+  parameters: (
+    ("points", "array", [Array of 2D coordinates `((x0, y0), (x1, y1), ...)`.]),
+    ("alpha", "float", [Knot exponent: `0.0` (uniform), `0.5` (centripetal, default), or `1.0` (chordal).]),
+    ("closed", "bool", [Whether the curve is a closed periodic loop.]),
+    ("boundary", "str", [Boundary condition for open curves: `"clamped"` (virtual ghost points) or `"natural"`.]),
   )
 )
 
-#api-doc(
+```example
+let pts = ((0, 0), (1, 2), (3, 0), (4, 2))
+let sp = cs.spline-catmull(pts, alpha: 0.5)
+spline(sp, stroke: 1.5pt + blue)
+for pt in pts { circle(pt, radius: 0.08, fill: black) }
+```
+
+#fn-doc(
   "spline-bspline",
-  "(points, degree: 3, closed: false, knots: none)",
-  [Constructs an arbitrary-degree B-spline using Cox-de Boor recursion and exact Bézier decomposition.],
   args: (
-    "points": [Array of control polygon vertices],
-    "degree": [Polynomial degree (default 3 for cubic B-spline)],
-    "closed": [Whether curve forms a closed periodic loop],
-    "knots": [Optional explicit knot vector, or `none` for standard clamped/periodic knots],
+    ("points", "array"),
+    ("degree", "int", 3),
+    ("closed", "bool", false),
+    ("knots", "array", none),
+  ),
+  ret: "spline",
+  [Constructs a B-spline of arbitrary degree via Cox-de Boor recursion, decomposed into cubic Bézier segments.],
+  parameters: (
+    ("points", "array", [Array of control polygon vertices.]),
+    ("degree", "int", [Polynomial degree (default: 3 for cubic B-spline).]),
+    ("closed", "bool", [Whether the spline forms a closed periodic loop.]),
+    ("knots", "array", [Optional custom knot vector. Defaults to clamped open-uniform knots.]),
   )
 )
 
-== 4.2. Analytical Evaluation
+```example
+let pts = ((0, 0), (1, 3), (3, 3), (4, 0), (5, 2))
+let sp = cs.spline-bspline(pts, degree: 3)
+draw-control-polygon(sp)
+spline(sp, stroke: 2pt + teal)
+```
 
-#api-doc("spline-eval", "(spline, t)", [Evaluates position $C(t) in bb(R)^2$ for global parameter $t in [0, 1]$.])
-#api-doc("spline-derivative", "(spline, t)", [Computes velocity / first derivative $C'(t) = frac(d C, d t)$.])
-#api-doc("spline-second-derivative", "(spline, t)", [Computes acceleration / second derivative $C''(t) = frac(d^2 C, d t^2)$.])
-#api-doc("spline-tangent", "(spline, t)", [Computes unit tangent vector $bold(T)(t) = frac(C'(t), ||C'(t)||)$.])
-#api-doc("spline-normal", "(spline, t)", [Computes Frenet unit normal vector $bold(N)(t) = (-T_y, T_x)$.])
-#api-doc("spline-curvature", "(spline, t)", [Computes signed scalar curvature $kappa(t) = frac(x' y'' - y' x'', (x'^2 + y'^2)^(3/2))$.])
+== Analytical Evaluation
 
-== 4.3. Arc-Length Operations
+#fn-doc(
+  "spline-eval",
+  args: (("spline", "spline"), ("t", "float")),
+  ret: "point",
+  [Evaluates position $C(t) in bb(R)^2$ on the spline for parameter $t in [0, 1]$.],
+  parameters: (
+    ("spline", "spline", [Target spline dictionary.]),
+    ("t", "float", [Global parameter in range $[0, 1]$.]),
+  )
+)
 
-#api-doc("spline-arc-length", "(spline, t1: 0.0, t2: 1.0)", [Computes total arc length, or segment distance between $t_1$ and $t_2$, via 5-point Gauss-Legendre quadrature.])
-#api-doc("spline-t-for-distance", "(spline, distance)", [Inverts arc length $s |-> t$ using Newton-Raphson iteration.])
-#api-doc("spline-point-at-distance", "(spline, distance)", [Evaluates curve point at exact physical distance $s$ along the curve.])
+#fn-doc(
+  "spline-derivative",
+  args: (("spline", "spline"), ("t", "float")),
+  ret: "vector",
+  [Computes velocity vector $C'(t) = frac(d C, d t)$ scaled with respect to global parameter $t$.],
+)
 
-== 4.4. Geometric Transformations
+#fn-doc(
+  "spline-second-derivative",
+  args: (("spline", "spline"), ("t", "float")),
+  ret: "vector",
+  [Computes acceleration vector $C''(t) = frac(d^2 C, d t^2)$.],
+)
 
-#api-doc("resample", "(spline, count)", [Resamples the curve into `count` points spaced uniformly by physical arc length.])
-#api-doc("homotopy", "(spline-a, spline-b, t)", [Computes the intermediate morphed spline at homotopy parameter $t in [0, 1]$. Resamples automatically if segment counts differ.])
-#api-doc("offset", "(spline, distance, subdivide: true)", [Computes a parallel offset curve displaced along the normal field $C_("offset")(u) = C(u) + d dot bold(N)(u)$ with curvature-scaled tangent matching.])
+#fn-doc(
+  "spline-tangent",
+  args: (("spline", "spline"), ("t", "float")),
+  ret: "vector",
+  [Computes normalized unit tangent vector $bold(T)(t) = frac(C'(t), ||C'(t)||)$.],
+)
 
-== 4.5. CeTZ Canvas Drawing Commands
+#fn-doc(
+  "spline-normal",
+  args: (("spline", "spline"), ("t", "float")),
+  ret: "vector",
+  [Computes Frenet unit normal vector $bold(N)(t) = (-T_y, T_x)$.],
+)
 
-#api-doc("draw.spline", "(spline-obj, name: none, stroke: 1pt + black, fill: none, close: false)", [Primary CeTZ canvas element wrapper. Registers named anchors: `"start"`, `"end"`, `"mid"`, `"pt-<idx>"`, `"t(50%)"`, `"s(50%)"`, `"50%"`.])
-#api-doc("draw.draw-tangents", "(spline-obj, samples: 10, scale: 0.4, stroke: blue)", [Draws directed tangent/velocity arrows along the curve.])
-#api-doc("draw.draw-normals", "(spline-obj, samples: 10, scale: 0.4, stroke: red)", [Draws perpendicular normal vectors along the curve.])
-#api-doc("draw.draw-curvature-comb", "(spline-obj, samples: 40, scale: 0.5, stroke: gray, envelope-stroke: blue)", [Renders CAD-style curvature needles $kappa dot bold(N)$ connected by an envelope curve.])
-#api-doc("draw.draw-control-polygon", "(spline-obj, stroke: dashed, pt-radius: 0.05)", [Draws the Bézier control polygon handles and vertices.])
-#api-doc("draw.draw-homotopy", "(spline-a, spline-b, steps: 5, stroke-fn: (t) => ...)", [Draws a family of intermediate curves under homotopy deformation.])
-#api-doc("draw.draw-homotopy-field", "(spline-a, spline-b, samples: 8, stroke: blue)", [Draws directed deformation vector field arrows connecting curve A to curve B.])
+#fn-doc(
+  "spline-curvature",
+  args: (("spline", "spline"), ("t", "float")),
+  ret: "float",
+  [Computes signed scalar curvature $kappa(t) = frac(x' y'' - y' x'', (x'^2 + y'^2)^(3/2))$.],
+)
 
----
+== Arc Length & Inversion
 
-= 5. Comprehensive Examples Gallery
+#fn-doc(
+  "spline-arc-length",
+  args: (
+    ("spline", "spline"),
+    ("t1", "float", 0.0),
+    ("t2", "float", 1.0),
+  ),
+  ret: "float",
+  [Computes arc length between parameters $t_1$ and $t_2$ via 5-point Gauss-Legendre quadrature.],
+)
 
-== Example 1: The Three Topological Panels
+#fn-doc(
+  "spline-t-for-distance",
+  args: (("spline", "spline"), ("distance", "float")),
+  ret: "float",
+  [Finds parameter $t in [0, 1]$ corresponding to physical distance along the curve using Newton-Raphson iteration.],
+)
 
-Homotopy theory analyzes equivalence classes of continuous loops. The following three panels demonstrate:
-1. *Loop Homotopy ($f tilde.equiv f'$)*: A loop deformed smoothly over parameter $t in [0, 1]$ into a contractible loop.
-2. *Loop Concatenation ($f * g$)*: Two loops joined at base point $x_0$.
-3. *Seam Detachment (Ablösen der Nahtstelle)*: Demonstrating that concatenation is associative up to homotopy.
+#fn-doc(
+  "spline-point-at-distance",
+  args: (("spline", "spline"), ("distance", "float")),
+  ret: "point",
+  [Evaluates point $C(s)$ at physical distance $s$ from curve start.],
+)
 
-#align(center)[
-  #cetz.canvas({
-    import cetz.draw: *
-    import cs.draw: *
+== Geometric Operations
 
-    // Panel 1: Loop Homotopy
-    group(name: "panel1", {
-      let loop-f = cs.spline-catmull(((0.0, 0.0), (1.2, 2.5), (3.0, 2.2), (3.5, 0.5), (2.0, -1.0), (0.0, 0.0)), closed: true)
-      let loop-g = cs.spline-catmull(((0.0, 0.0), (0.8, 1.2), (1.8, 1.0), (2.0, 0.2), (1.0, -0.4), (0.0, 0.0)), closed: true)
+#fn-doc(
+  "resample",
+  args: (("spline", "spline"), ("count", "int")),
+  ret: "array",
+  [Resamples the curve into `count` points spaced uniformly by physical arc length.],
+  parameters: (
+    ("spline", "spline", [Target spline.]),
+    ("count", "int", [Number of equidistant sample points ($>= 2$).]),
+  )
+)
 
-      draw-homotopy-field(loop-f, loop-g, samples: 12, stroke: 0.5pt + rgb("#a8dadc"))
-      draw-homotopy(loop-f, loop-g, steps: 4, stroke-fn: (t) => 0.7pt + rgb(int(29 + t * 180), int(53 + t * 50), int(87 + t * 80)))
+```example
+let sp = cs.spline-catmull(((0, 0), (1, 2), (3, 0), (4, 2)))
+let pts = cs.resample(sp, 8)
+spline(sp, stroke: 1pt + gray)
+for p in pts { circle(p, radius: 0.1, fill: red) }
+```
 
-      spline(loop-f, stroke: 2pt + rgb("#1d3557"))
-      spline(loop-g, stroke: 1.5pt + rgb("#e63946"))
-      circle((0.0, 0.0), radius: 0.12, fill: black)
-      content((0.0, -0.4), text(size: 9pt, weight: "bold")[$x_0$])
-      content((1.8, 2.7), text(size: 9pt, fill: rgb("#1d3557"))[$f$])
-      content((1.8, 1.3), text(size: 9pt, fill: rgb("#e63946"))[$f'$])
-      content((1.8, -1.5), text(size: 9.5pt, weight: "bold")[(A) Schleifenhomotopie $f tilde.equiv f'$])
-    })
+#fn-doc(
+  "homotopy",
+  args: (("spline-a", "spline"), ("spline-b", "spline"), ("t", "float")),
+  ret: "spline",
+  [Computes intermediate morphed spline under linear homotopy $(1-t) A + t B$. When segment counts differ, both curves are automatically resampled by arc length.],
+)
 
-    // Panel 2: Concatenation
-    group(name: "panel2", {
-      translate((5.5, 0.0))
-      let loop-left = cs.spline-catmull(((0.0, 0.0), (-1.2, 1.8), (-2.4, 0.2), (-1.5, -1.2), (0.0, 0.0)), closed: true)
-      let loop-right = cs.spline-catmull(((0.0, 0.0), (1.2, 1.8), (2.4, 0.2), (1.5, -1.2), (0.0, 0.0)), closed: true)
+#fn-doc(
+  "offset",
+  args: (
+    ("spline", "spline"),
+    ("distance", "float"),
+    ("subdivide", "bool", true),
+  ),
+  ret: "spline",
+  [Computes a parallel offset curve displaced along the normal field $C(u) + d dot bold(N)(u)$ with curvature-matched velocity.],
+  parameters: (
+    ("spline", "spline", [Base curve.]),
+    ("distance", "float", [Perpendicular offset distance (positive: left, negative: right).]),
+    ("subdivide", "bool", [Whether to split segments with high curvature variation.]),
+  )
+)
 
-      spline(loop-left, stroke: 2pt + rgb("#457b9d"), fill: rgb("#457b9d15"))
-      spline(loop-right, stroke: 2pt + rgb("#e76f51"), fill: rgb("#e76f5115"))
+```example
+let sp = cs.spline-catmull(((0, 0), (2, 2), (4, 0)))
+let left = cs.offset(sp, 0.4)
+let right = cs.offset(sp, -0.4)
 
-      circle((0.0, 0.0), radius: 0.12, fill: black)
-      content((0.0, -0.4), text(size: 9pt, weight: "bold")[$x_0$])
-      content((-1.5, 0.6), text(size: 9.5pt, fill: rgb("#457b9d"))[$f$])
-      content((1.5, 0.6), text(size: 9.5pt, fill: rgb("#e76f51"))[$g$])
-      content((0.0, -1.5), text(size: 9.5pt, weight: "bold")[(B) Konkatenation $f * g$])
-    })
+spline(left, stroke: 1.5pt + red)
+spline(sp, stroke: 1pt + black)
+spline(right, stroke: 1.5pt + blue)
+```
 
-    // Panel 3: Seam Detachment
-    group(name: "panel3", {
-      translate((11.0, 0.0))
-      let outer-loop = cs.spline-catmull(((-2.0, 0.0), (-1.0, 2.0), (1.0, 2.0), (2.0, 0.0), (1.0, -1.2), (-1.0, -1.2)), closed: true)
-      let seam-attached = cs.spline-catmull(((0.0, -1.2), (0.0, 0.0), (0.0, 1.8)))
-      let seam-detached = cs.spline-catmull(((0.0, -0.5), (0.3, 0.2), (0.0, 1.8)))
+== Canvas Drawing Functions
 
-      spline(outer-loop, stroke: 2pt + rgb("#264653"))
-      draw-homotopy(seam-attached, seam-detached, steps: 3, stroke-fn: (t) => 0.8pt + rgb(180, int(100 * t), 150))
-      spline(seam-attached, stroke: (paint: rgb("#e63946"), thickness: 1.5pt, dash: "dashed"))
-      spline(seam-detached, stroke: 1.8pt + rgb("#2a9d8f"))
+#fn-doc(
+  "draw.spline",
+  args: (
+    ("spline-obj", "any"),
+    ("name", "str", none),
+    ("stroke", "stroke", 1pt + black),
+    ("fill", "paint", none),
+    ("close", "bool", false),
+  ),
+  ret: "element",
+  [CeTZ canvas drawing element. Accepts either a spline dictionary or an array of points. Registers named anchors for CeTZ coordinate lookups.],
+)
 
-      circle((0.0, -1.2), radius: 0.12, fill: black)
-      content((0.0, -1.6), text(size: 9pt, weight: "bold")[$x_0$])
-      content((0.0, -2.1), text(size: 9.5pt, weight: "bold")[(C) Ablösen der Nahtstelle])
-    })
-  })
-]
+#fn-doc(
+  "draw.draw-tangents",
+  args: (
+    ("spline-obj", "any"),
+    ("samples", "int", 10),
+    ("scale", "float", 0.4),
+    ("stroke", "stroke", 0.8pt + blue),
+  ),
+  ret: "element",
+  [Draws directed velocity / tangent arrows along the curve.],
+)
 
-== Example 2: Curvature Analysis of an Asymmetric Cam Profile
+```example
+let sp = cs.spline-catmull(((0, 0), (2, 2), (4, 0)))
+spline(sp, stroke: 1.5pt + black)
+draw-tangents(sp, samples: 6, scale: 1.2, stroke: 1pt + blue)
+```
 
-In mechanical cam design, $C^2$ continuity guarantees bounded acceleration and jerk. The curvature comb below visually highlights curvature peaks and inflections.
+#fn-doc(
+  "draw.draw-normals",
+  args: (
+    ("spline-obj", "any"),
+    ("samples", "int", 10),
+    ("scale", "float", 0.4),
+    ("stroke", "stroke", 0.8pt + red),
+  ),
+  ret: "element",
+  [Draws perpendicular Frenet normal vectors along the curve.],
+)
 
-#align(center)[
-  #cetz.canvas({
-    import cetz.draw: *
-    import cs.draw: *
+```example
+let sp = cs.spline-catmull(((0, 0), (2, 2), (4, 0)))
+spline(sp, stroke: 1.5pt + black)
+draw-normals(sp, samples: 6, scale: 0.7, stroke: 1pt + red)
+```
 
-    let cam-pts = (
-      (0.0, 1.5),
-      (1.8, 2.8),
-      (3.2, 1.2),
-      (2.5, -1.5),
-      (0.0, -2.2),
-      (-2.5, -1.5),
-      (-3.2, 1.2),
-      (-1.8, 2.8),
-    )
-    let cam = cs.spline-catmull(cam-pts, alpha: 0.5, closed: true)
+#fn-doc(
+  "draw.draw-curvature-comb",
+  args: (
+    ("spline-obj", "any"),
+    ("samples", "int", 40),
+    ("scale", "float", 0.5),
+    ("stroke", "stroke", 0.5pt + gray),
+    ("envelope-stroke", "stroke", 0.8pt + blue),
+  ),
+  ret: "element",
+  [Renders CAD-style curvature needles $kappa(s) dot bold(N)(s)$ connected by an envelope curve.],
+)
 
-    // Curvature comb
-    draw-curvature-comb(
-      cam,
-      samples: 60,
-      scale: 0.8,
-      stroke: 0.4pt + luma(150),
-      envelope-stroke: 1.2pt + rgb("#e63946"),
-      fill: rgb("#e6394612"),
-    )
+```example
+let sp = cs.spline-catmull(((0, 0), (1.5, 2.5), (3.5, 0.5), (5, 2)))
+draw-curvature-comb(sp, samples: 35, scale: 0.5, stroke: 0.4pt + gray, envelope-stroke: 1pt + red)
+spline(sp, stroke: 2pt + black)
+```
 
-    // Central cam
-    spline(cam, stroke: 2.2pt + rgb("#1d3557"), fill: rgb("#f1faee"))
+#fn-doc(
+  "draw.draw-homotopy",
+  args: (
+    ("spline-a", "spline"),
+    ("spline-b", "spline"),
+    ("steps", "int", 5),
+    ("stroke-fn", "function", none),
+  ),
+  ret: "element",
+  [Draws a family of intermediate curves under homotopy deformation.],
+)
 
-    // Center of rotation
-    circle((0.0, 0.0), radius: 0.12, fill: black)
-    circle((0.0, 0.0), radius: 0.6, stroke: (paint: gray, thickness: 0.8pt, dash: "dashed"))
-    content((0.0, -0.3), text(size: 8pt)[Shaft axis])
-  })
-]
+#fn-doc(
+  "draw.draw-homotopy-field",
+  args: (
+    ("spline-a", "spline"),
+    ("spline-b", "spline"),
+    ("samples", "int", 8),
+    ("stroke", "stroke", 0.8pt + blue),
+  ),
+  ret: "element",
+  [Draws directed deformation vector field arrows connecting curve A to curve B.],
+)
 
-== Example 3: Parallel Offset Curves & Highway Banding
+#pagebreak()
+= Examples Gallery
 
-Generating parallel roadway lanes, kerbs, and lane markers from a single centerline trajectory using `cs.offset`.
+== Loop Homotopy ($f tilde.equiv f'$)
 
-#align(center)[
-  #cetz.canvas({
-    import cetz.draw: *
-    import cs.draw: *
+Deforming a loop $f$ continuously through intermediate curves into a smaller homotopic loop $f'$ with deformation arrows.
 
-    let highway-pts = (
-      (-5.0, -1.5),
-      (-2.0, 1.5),
-      (1.0, -0.8),
-      (4.0, 1.8),
-      (7.0, 0.0),
-    )
-    let center = cs.spline-catmull(highway-pts, alpha: 0.5)
+```example-vertical
+let f = cs.spline-catmull(((0, 0), (1.2, 2.5), (3, 2.2), (3.5, 0.5), (2, -1), (0, 0)), closed: true)
+let f-prime = cs.spline-catmull(((0, 0), (0.8, 1.2), (1.8, 1), (2, 0.2), (1, -0.4), (0, 0)), closed: true)
 
-    let left-edge = cs.offset(center, 1.0)
-    let right-edge = cs.offset(center, -1.0)
-    let left-lane = cs.offset(center, 0.5)
-    let right-lane = cs.offset(center, -0.5)
+draw-homotopy-field(f, f-prime, samples: 10, stroke: 0.6pt + rgb("#a8dadc"))
+draw-homotopy(f, f-prime, steps: 4, stroke-fn: (t) => 0.8pt + rgb(int(20 + t * 180), 60, int(80 + t * 80)))
 
-    // Road surface band
-    spline(left-edge, stroke: 2pt + black)
-    spline(left-lane, stroke: (paint: rgb("#f4a261"), thickness: 1pt, dash: "dashed"))
-    spline(center, stroke: 1.5pt + rgb("#e63946"))
-    spline(right-lane, stroke: (paint: rgb("#f4a261"), thickness: 1pt, dash: "dashed"))
-    spline(right-edge, stroke: 2pt + black)
+spline(f, stroke: 2pt + rgb("#1d3557"))
+spline(f-prime, stroke: 1.5pt + rgb("#e63946"))
+circle((0, 0), radius: 0.1, fill: black)
+content((0, -0.4), text(size: 8pt)[$x_0$])
+content((1.8, 2.7), text(size: 8pt)[$f$])
+content((1.8, 1.3), text(size: 8pt)[$f'$])
+```
 
-    // Direction arrows along highway
-    draw-tangents(center, samples: 6, scale: 0.4, stroke: 1.2pt + rgb("#1d3557"))
-  })
-]
+== Loop Concatenation ($f * g$)
 
-== Example 4: Centripetal vs. Chordal vs. Uniform Comparison
+Two loops sharing the base point $x_0$, traversing $f$ in $[0, 1/2]$ and $g$ in $[1/2, 1]$.
 
-Demonstrating the effect of knot exponent $alpha$ when interpolating sharp, non-uniform point configurations.
+```example-vertical
+let left = cs.spline-catmull(((0, 0), (-1.2, 1.8), (-2.4, 0.2), (-1.5, -1.2), (0, 0)), closed: true)
+let right = cs.spline-catmull(((0, 0), (1.2, 1.8), (2.4, 0.2), (1.5, -1.2), (0, 0)), closed: true)
 
-#align(center)[
-  #cetz.canvas({
-    import cetz.draw: *
-    import cs.draw: *
+spline(left, stroke: 2pt + rgb("#457b9d"), fill: rgb("#457b9d15"))
+spline(right, stroke: 2pt + rgb("#e76f51"), fill: rgb("#e76f5115"))
+circle((0, 0), radius: 0.1, fill: black)
+content((0, -0.4), text(size: 8pt)[$x_0$])
+content((-1.5, 0.6), text(size: 8pt)[$f$])
+content((1.5, 0.6), text(size: 8pt)[$g$])
+```
 
-    let sharp-pts = (
-      (-4.0, 0.0),
-      (-1.5, 3.5),
-      (-1.0, 0.2),
-      (1.0, 0.2),
-      (1.5, 3.5),
-      (4.0, 0.0),
-    )
+#pagebreak()
+== Seam Detachment (Ablösen der Nahtstelle)
 
-    let sp-uniform = cs.spline-catmull(sharp-pts, alpha: 0.0)
-    let sp-centripetal = cs.spline-catmull(sharp-pts, alpha: 0.5)
-    let sp-chordal = cs.spline-catmull(sharp-pts, alpha: 1.0)
+Homotopy that detaches the internal junction seam away from base point $x_0$, showing that loop concatenation is associative up to homotopy.
 
-    spline(sp-uniform, stroke: 1.5pt + rgb("#e63946"))
-    spline(sp-centripetal, stroke: 2.2pt + rgb("#1d3557"))
-    spline(sp-chordal, stroke: 1.5pt + rgb("#2a9d8f"))
+```example-vertical
+let outer = cs.spline-catmull(((-2, 0), (-1, 2), (1, 2), (2, 0), (1, -1.2), (-1, -1.2)), closed: true)
+let seam = cs.spline-catmull(((0, -1.2), (0, 0), (0, 1.8)))
+let detached = cs.spline-catmull(((0, -0.5), (0.3, 0.2), (0, 1.8)))
 
-    for pt in sharp-pts {
-      circle(pt, radius: 0.1, fill: black)
-    }
+spline(outer, stroke: 2pt + rgb("#264653"))
+draw-homotopy(seam, detached, steps: 3, stroke-fn: (t) => 0.8pt + rgb(160, int(80 * t), 130))
+spline(seam, stroke: (paint: rgb("#e63946"), thickness: 1.5pt, dash: "dashed"))
+spline(detached, stroke: 1.8pt + rgb("#2a9d8f"))
+circle((0, -1.2), radius: 0.1, fill: black)
+content((0, -1.6), text(size: 8pt)[$x_0$])
+```
 
-    // Legend
-    rect((0.5, -0.8), (4.5, -2.2), stroke: 0.5pt + gray, fill: rgb("#ffffffea"))
-    line((0.8, -1.1), (1.6, -1.1), stroke: 1.5pt + rgb("#e63946"))
-    content((1.8, -1.1), anchor: "west", text(size: 8.5pt)[Uniform ($alpha = 0.0$) - Loops/Cusps])
-    line((0.8, -1.5), (1.6, -1.5), stroke: 2.2pt + rgb("#1d3557"))
-    content((1.8, -1.5), anchor: "west", text(size: 8.5pt)[Centripetal ($alpha = 0.5$) - Cusp-free])
-    line((0.8, -1.9), (1.6, -1.9), stroke: 1.5pt + rgb("#2a9d8f"))
-    content((1.8, -1.9), anchor: "west", text(size: 8.5pt)[Chordal ($alpha = 1.0$) - Smooth])
-  })
-]
+#pagebreak()
+== Mechanical Cam Profile Curvature Analysis
+
+Evaluating curvature continuity of a cam curve using `draw-curvature-comb`. Needle spikes $kappa(s) dot bold(N)(s)$ and the outer envelope indicate $C^2$ acceleration continuity.
+
+```example-vertical
+let pts = (
+  (0, 1.5), (1.8, 2.8), (3.2, 1.2), (2.5, -1.5),
+  (0, -2.2), (-2.5, -1.5), (-3.2, 1.2), (-1.8, 2.8),
+)
+let cam = cs.spline-catmull(pts, alpha: 0.5, closed: true)
+
+draw-curvature-comb(cam, samples: 60, scale: 0.8, stroke: 0.4pt + luma(160), envelope-stroke: 1.2pt + red, fill: rgb("#e6394612"))
+spline(cam, stroke: 2pt + rgb("#1d3557"), fill: rgb("#f1faee"))
+circle((0, 0), radius: 0.1, fill: black)
+circle((0, 0), radius: 0.5, stroke: (paint: gray, thickness: 0.8pt, dash: "dashed"))
+```
+
+#pagebreak()
+== Highway Lane Banding
+
+Generating parallel roadway lanes from a centerline spline using `cs.offset`.
+
+```example-vertical
+let pts = ((-4, -1.2), (-1.5, 1.2), (1, -0.6), (3.5, 1.4), (6, 0))
+let center = cs.spline-catmull(pts, alpha: 0.5)
+
+let left = cs.offset(center, 0.8)
+let right = cs.offset(center, -0.8)
+let left-lane = cs.offset(center, 0.4)
+let right-lane = cs.offset(center, -0.4)
+
+spline(left, stroke: 2pt + black)
+spline(left-lane, stroke: (paint: orange, thickness: 1pt, dash: "dashed"))
+spline(center, stroke: 1.5pt + red)
+spline(right-lane, stroke: (paint: orange, thickness: 1pt, dash: "dashed"))
+spline(right, stroke: 2pt + black)
+draw-tangents(center, samples: 5, scale: 0.4, stroke: 1.2pt + blue)
+```
+
+#pagebreak()
+== Knot Exponent Comparison ($alpha$)
+
+Comparison of uniform ($alpha = 0.0$), centripetal ($alpha = 0.5$), and chordal ($alpha = 1.0$) interpolation over sharp non-uniform points. Centripetal parameterization eliminates the loop artifact visible in the uniform curve.
+
+```example-vertical
+let pts = ((-3.5, 0), (-1.2, 3), (-0.8, 0.2), (0.8, 0.2), (1.2, 3), (3.5, 0))
+let sp-uni = cs.spline-catmull(pts, alpha: 0.0)
+let sp-cent = cs.spline-catmull(pts, alpha: 0.5)
+let sp-chord = cs.spline-catmull(pts, alpha: 1.0)
+
+spline(sp-uni, stroke: 1.5pt + red)
+spline(sp-cent, stroke: 2.2pt + rgb("#1d3557"))
+spline(sp-chord, stroke: 1.5pt + teal)
+
+for p in pts { circle(p, radius: 0.08, fill: black) }
+
+// Legend
+rect((0.2, -0.7), (4.4, -1.9), stroke: 0.5pt + gray, fill: rgb("#fffffffa"))
+line((0.4, -0.9), (1.1, -0.9), stroke: 1.5pt + red)
+content((1.3, -0.9), anchor: "west", text(size: 7.5pt)[Uniform (alpha = 0.0) - Cusps])
+line((0.4, -1.3), (1.1, -1.3), stroke: 2.2pt + rgb("#1d3557"))
+content((1.3, -1.3), anchor: "west", text(size: 7.5pt)[Centripetal (alpha = 0.5) - Cusp-free])
+line((0.4, -1.7), (1.1, -1.7), stroke: 1.5pt + teal)
+content((1.3, -1.7), anchor: "west", text(size: 7.5pt)[Chordal (alpha = 1.0) - Smooth])
+```
