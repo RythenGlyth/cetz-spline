@@ -105,7 +105,7 @@ Or for local development:
 - `cs.scale-spline(spline, factor, origin: (0, 0), dir: none)`: Scaling with negative factor and directional scaling support (aliased as `scale`).
 - `cs.mirror-spline(spline, origin: (0, 0), axis: "x")`: Reflection across an axis line or point reflection (aliased as `mirror`).
 - `cs.resample(spline, count)`: Uniform physical arc-length point resampling.
-- `cs.homotopy(spline-a, spline-b, t)`: Intermediate morphed curve at parameter $t \in [0, 1]$.
+- `cs.homotopy(spline-a, spline-b, t, mode: "auto", samples: auto)`: Intermediate morphed curve at parameter $t \in [0, 1]$ (`mode`: `"auto"`, `"segment"`, or `"arc-length"`).
 - `cs.offset(spline, distance, subdivide: true)`: Parallel normal offset curve.
 
 ### Drawing Elements (`cs.draw`)
@@ -114,8 +114,8 @@ Or for local development:
 - `cs.draw.draw-normals(spline-obj, samples: 10, scale: 0.4, stroke: red)`: Perpendicular Frenet normal vectors.
 - `cs.draw.draw-curvature-comb(spline-obj, samples: 40, scale: 0.5, stroke: gray, envelope-stroke: red, fill: none)`: CAD curvature spikes with envelope.
 - `cs.draw.draw-control-polygon(spline-obj, stroke: dashed, pt-radius: 0.05)`: Control polygon hull.
-- `cs.draw.draw-homotopy(spline-a, spline-b, steps: 5, stroke-fn: (t) => ...)`: Morphed intermediate curve family.
-- `cs.draw.draw-homotopy-field(spline-a, spline-b, samples: 8, stroke: blue)`: Directed deformation vector field arrows.
+- `cs.draw.draw-homotopy(spline-a, spline-b, steps: 5, stroke-fn: (t) => ..., mode: "auto", samples: auto)`: Morphed intermediate curve family.
+- `cs.draw.draw-homotopy-field(spline-a, spline-b, samples: 8, stroke: blue, mark: (end: ">"), mode: "arc-length")`: Directed deformation vector field arrows.
 
 ---
 

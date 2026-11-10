@@ -223,3 +223,31 @@ Math tests passed!
   assert(approx-eq(n-ang-dist.deg(), 90.0, eps: 1e-4))
 }
 
+// Test 7: Homotopy interpolation modes (segment vs arc-length)
+#import "../src/core/ops.typ": homotopy
+
+#{
+  let sp-a = spline-catmull(((0.0, 0.0), (1.0, 0.0), (8.0, 0.0)))
+  let sp-b = spline-catmull(((0.0, 0.0), (7.0, 0.0), (8.0, 0.0)))
+
+  // 1. Segment mode: matches segment 0 to segment 0
+  let h-seg = homotopy(sp-a, sp-b, 0.5, mode: "segment")
+  assert(h-seg.meta.mode == "segment")
+  // Midpoint between segments (global t = 0.5) moves from x=1 to x=7 -> at tau=0.5: x=4.0
+  let mid-seg-pt = spline-eval(h-seg, 0.5)
+  assert(approx-eq(mid-seg-pt.at(0), 4.0, eps: 1e-4))
+
+  // 2. Arc-length mode: forces physical path length resampling
+  let h-len = homotopy(sp-a, sp-b, 0.5, mode: "arc-length", samples: 32)
+  // At distance s = 2.0 (25% of total length 8):
+  // Both straight lines have x = 2.0 at s = 2.0, so intermediate curve also has x ~ 2.0
+  let p-len-at-2 = spline-point-at-distance(h-len, 2.0)
+  assert(approx-eq(p-len-at-2.at(0), 2.0, eps: 0.1),
+    message: "Arc-length mode should preserve uniform physical metric: got " + repr(p-len-at-2))
+
+  // 3. Auto mode defaults to segment mode when segment counts match
+  let h-auto = homotopy(sp-a, sp-b, 0.5, mode: "auto")
+  assert(h-auto.meta.mode == "segment")
+}
+
+

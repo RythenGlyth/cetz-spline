@@ -525,9 +525,25 @@ for p in pts { circle(p, radius: 0.1, fill: red) }
 
 #fn-doc(
   "homotopy",
-  args: (("spline-a", "spline"), ("spline-b", "spline"), ("t", "float")),
+  args: (
+    ("spline-a", "spline"),
+    ("spline-b", "spline"),
+    ("t", "float"),
+    ("mode", "str", "auto"),
+    ("samples", "int, auto", auto),
+  ),
   ret: "spline",
-  [Computes intermediate morphed spline under linear homotopy $(1-t) A + t B$. When segment counts differ, both curves are automatically resampled by arc length.],
+  [Computes intermediate morphed spline under linear homotopy $(1-t) A + t B$.],
+  parameters: (
+    ("spline-a", "spline", [Base source spline ($t = 0$).]),
+    ("spline-b", "spline", [Target destination spline ($t = 1$).]),
+    ("t", "float", [Homotopy parameter in $[0, 1]$.]),
+    ("mode", "str", [Interpolation strategy:
+      - `"auto"` (default): uses `"segment"` if segment counts and closedness match; otherwise resamples by arc length.
+      - `"segment"`: forces direct segment-by-segment Bézier control point interpolation.
+      - `"arc-length"` (or `"length"`): forces uniform physical arc-length resampling before morphing, ensuring points at distance fraction $s$ morph directly to distance fraction $s$ on the target curve. Useful when segment lengths vary significantly between curves (e.g. $[0, 1, 8]$ to $[0, 7, 8]$) to prevent non-uniform stretching waves.]),
+    ("samples", "int, auto", [Resample count when in `"arc-length"` mode (default: `auto`, picking $max(4 N_A, 4 N_B, 32)$).]),
+  ),
 )
 
 #fn-doc(
@@ -807,9 +823,11 @@ spline(sp, stroke: 2pt + black)
     ("spline-b", "spline"),
     ("steps", "int", 5),
     ("stroke-fn", "function", none),
+    ("mode", "str", "auto"),
+    ("samples", "int, auto", auto),
   ),
   ret: "element",
-  [Draws a family of intermediate curves under homotopy deformation.],
+  [Draws a family of intermediate curves under homotopy deformation. Supports `mode: "auto"`, `"segment"`, or `"arc-length"` to control whether curves are morphed by Bézier control handles or physical arc length.],
 )
 
 #fn-doc(
@@ -819,9 +837,11 @@ spline(sp, stroke: 2pt + black)
     ("spline-b", "spline"),
     ("samples", "int", 8),
     ("stroke", "stroke", 0.8pt + blue),
+    ("mark", "dictionary", (end: ">")),
+    ("mode", "str", "arc-length"),
   ),
   ret: "element",
-  [Draws directed deformation vector field arrows connecting curve A to curve B.],
+  [Draws directed deformation vector field arrows connecting curve A to curve B. Supports `mode: "arc-length"` (default: arrows distributed at equal physical curve distances) or `"segment"` (arrows distributed in parameter space).],
 )
 
 #pagebreak()

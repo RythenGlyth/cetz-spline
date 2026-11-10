@@ -46,8 +46,19 @@
 /// - spline-a (spline): Base curve (t = 0)
 /// - spline-b (spline): Target curve (t = 1)
 /// - t (float): Homotopy parameter in [0, 1]
+/// - mode (str): Morphing interpolation strategy:
+///   - `"auto"` (default): uses `"segment"` if segment counts and closedness match;
+///     otherwise falls back to `"arc-length"`.
+///   - `"segment"`: forces direct segment-by-segment Bézier control point interpolation.
+///     Both curves must have the same number of segments.
+///   - `"arc-length"` (or `"length"`): forces uniform physical arc-length resampling
+///     before morphing. Points at distance fraction $s$ morph directly to distance
+///     fraction $s$ on the target curve, preventing non-uniform stretching even
+///     when segment sizes differ.
+/// - samples (int, auto): Number of sample points when using arc-length resampling
+///   (defaults to `auto`, picking `max(segs_a * 4, segs_b * 4, 32)`).
 /// -> intermediate spline object
-#let homotopy(spline-a, spline-b, t) = {
+#let homotopy(spline-a, spline-b, t, mode: "auto", samples: auto) = {
   assert-spline(spline-a, name: "spline-a")
   assert-spline(spline-b, name: "spline-b")
   let t-val = calc.max(0.0, calc.min(1.0, float(t)))
@@ -62,8 +73,22 @@
   let segs-a = spline-a.segments
   let segs-b = spline-b.segments
 
-  // Fast path: identical segment count and topological closure
-  if segs-a.len() == segs-b.len() and spline-a.closed == spline-b.closed {
+  let use-segment-mode = if mode == "segment" {
+    assert(
+      segs-a.len() == segs-b.len(),
+      message: "Segment homotopy requires identical segment counts: spline-a has " + str(segs-a.len()) + ", spline-b has " + str(segs-b.len()),
+    )
+    true
+  } else if mode == "arc-length" or mode == "length" {
+    false
+  } else if mode == "auto" {
+    segs-a.len() == segs-b.len() and spline-a.closed == spline-b.closed
+  } else {
+    panic("Unknown homotopy mode: " + repr(mode) + ". Supported: 'auto', 'segment', 'arc-length'.")
+  }
+
+  // 1. Segment-by-segment control point interpolation
+  if use-segment-mode {
     let morphed-segs = ()
     let one-minus-t = 1.0 - t-val
 
@@ -95,13 +120,18 @@
       type: "homotopy",
       pts: morphed-pts,
       closed: spline-a.closed,
-      meta: (t: t-val),
+      meta: (t: t-val, mode: "segment"),
       segments: morphed-segs,
     )
   }
 
-  // General path: resample both curves uniformly by arc length
-  let m = calc.max(segs-a.len() * 4, segs-b.len() * 4, 32)
+  // 2. Arc-length resampling path: resample both curves uniformly by physical arc length
+  let m = if samples == auto {
+    calc.max(segs-a.len() * 4, segs-b.len() * 4, 32)
+  } else {
+    calc.max(4, int(samples))
+  }
+
   let pts-a = resample(spline-a, m)
   let pts-b = resample(spline-b, m)
   let lerped-pts = ()

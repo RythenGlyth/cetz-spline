@@ -12,11 +12,15 @@
 /// - spline-b (spline): Ending curve (t = 1)
 /// - steps (int): Number of intermediate subdivisions (total curves = steps + 1)
 /// - stroke-fn (function): Function mapping t in [0, 1] to a stroke style
+/// - mode (str): Morphing mode: `"auto"`, `"segment"`, or `"arc-length"`
+/// - samples (int, auto): Resample count when using arc-length mode
 #let draw-homotopy(
   spline-a,
   spline-b,
   steps: 5,
   stroke-fn: (t) => 0.8pt + rgb(int(255 * (1 - t)), 0, int(255 * t)),
+  mode: "auto",
+  samples: auto,
 ) = {
   assert-spline(spline-a, name: "spline-a")
   assert-spline(spline-b, name: "spline-b")
@@ -24,35 +28,47 @@
   let n = calc.max(1, steps)
   for i in range(0, n + 1) {
     let t = float(i) / float(n)
-    let intermediate = homotopy(spline-a, spline-b, t)
+    let intermediate = homotopy(spline-a, spline-b, t, mode: mode, samples: samples)
     let stk = stroke-fn(t)
     spline(intermediate, stroke: stk)
   }
 }
 
-/// Draw a directed deformation vector field connecting spline-a to spline-b
-/// at uniform arc-length intervals.
+/// Draw a directed deformation vector field connecting spline-a to spline-b.
 ///
 /// - spline-a (spline): Source curve
 /// - spline-b (spline): Target curve
 /// - samples (int): Number of vector field arrows
 /// - stroke (stroke): Arrow stroke
 /// - mark (dictionary, str): Endpoint arrow mark
+/// - mode (str): Arrow distribution: `"arc-length"` (default, uniform physical spacing) or `"segment"`
 #let draw-homotopy-field(
   spline-a,
   spline-b,
   samples: 8,
   stroke: 0.8pt + blue,
   mark: (end: ">"),
+  mode: "arc-length",
 ) = {
   import cetz.draw: line
+  import "../core/bezier.typ": spline-eval
 
   assert-spline(spline-a, name: "spline-a")
   assert-spline(spline-b, name: "spline-b")
 
   let n = calc.max(2, samples)
-  let pts-a = resample(spline-a, n)
-  let pts-b = resample(spline-b, n)
+  let (pts-a, pts-b) = if mode == "segment" {
+    let pa = ()
+    let pb = ()
+    for i in range(0, n) {
+      let t = float(i) / float(n - 1)
+      pa.push(spline-eval(spline-a, t))
+      pb.push(spline-eval(spline-b, t))
+    }
+    (pa, pb)
+  } else {
+    (resample(spline-a, n), resample(spline-b, n))
+  }
 
   for i in range(0, n) {
     let pa = pts-a.at(i)
@@ -60,3 +76,4 @@
     line(pa, pb, stroke: stroke, mark: mark)
   }
 }
+
