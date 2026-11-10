@@ -1,0 +1,13 @@
+[package]
+name = "cetz-spline"
+version = "0.1.0"
+entrypoint = "src/lib.typ"
+authors = ["Typst Community Contributor"]
+license = "MIT"
+description = "Advanced mathematical splines, centripetal Catmull-Rom, curvature combs, arc-length parameterization, and homotopies for CeTZ."
+repository = "https://github.com/typst/cetz-spline"
+keywords = ["cetz", "spline", "catmull-rom", "b-spline", "curvature", "homotopy", "geometry"]
+compiler = "0.11.0"
+
+[dependencies]
+cetz = "0.5.3"
