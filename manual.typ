@@ -275,6 +275,8 @@ When `name: "..."` is passed to `cs.draw.spline`, the following named anchors ar
 
 Use `cs.spline-catmull` when the curve must pass through every data point, for example a route or a measured profile. Start with `alpha: 0.5`; `alpha: 0` and `alpha: 1` are useful comparisons, not universal improvements. Use `cs.spline-bspline` when the points should act as a control polygon: interior points generally do not lie on the curve. Open clamped B-splines interpolate their first and last points. Closed curves wrap automatically; do not repeat the first point at the end.
 
+When the endpoint behavior drives the design, use `cs.spline-hermite` for a single cubic with specified derivatives, or `cs.spline-transition` for endpoint directions and signed curvatures. The latter is useful for joining profiles at $G^2$ continuity.
+
 == Interpolation versus Control Points
 
 Both curves below use the same points. Blue interpolates them; orange is pulled towards them. The dashed polygon is the input data, rather than the individual cubic handle polygons.
@@ -387,6 +389,72 @@ let pts = ((0, 0), (1, 3), (3, 3), (4, 0), (5, 2))
 let sp = cs.spline-bspline(pts, degree: 3)
 draw-control-polygon(sp)
 spline(sp, stroke: 2pt + teal)
+```
+
+== Endpoint-Defined Splines
+
+#fn-doc(
+  "spline-hermite",
+  args: (
+    ("start", "point"),
+    ("end", "point"),
+    ("start-tangent", "vector", auto),
+    ("end-tangent", "vector", auto),
+  ),
+  ret: "spline",
+  [Constructs one cubic from endpoint positions and derivative vectors. For this constructor, a tangent includes its magnitude: it is $C'(t)$ at the endpoint. `auto` uses `end - start`. Both tangents point along traversal, including the end tangent. Zero vectors are allowed, but produce stationary endpoints with undefined geometric tangent or curvature.],
+)
+
+The two interior Bézier poles are computed as `start + start-tangent / 3` and `end - end-tangent / 3`. Increasing a vector's magnitude pulls the curve farther along its direction.
+
+```example-vertical
+let a = cs.spline-hermite((0, 0), (4, 0),
+  start-tangent: (2, 3), end-tangent: (2, -3))
+let b = cs.spline-hermite((0, 0), (4, 0),
+  start-tangent: (4, 6), end-tangent: (4, -6))
+spline(a, stroke: 1.5pt + blue)
+spline(b, stroke: 1.5pt + orange)
+circle((0, 0), radius: 0.06, fill: black)
+circle((4, 0), radius: 0.06, fill: black)
+content((2, 2), [Orange: twice the derivatives], anchor: "south")
+```
+
+#fn-doc(
+  "spline-transition",
+  args: (
+    ("start", "point"),
+    ("end", "point"),
+    ("start-tangent", "any", auto),
+    ("end-tangent", "any", auto),
+    ("start-curvature", "number", 0),
+    ("end-curvature", "number", 0),
+    ("start-speed", "number", auto),
+    ("end-speed", "number", auto),
+  ),
+  ret: "spline",
+  [Constructs a curvature-controlled transition from three cubic spans with continuous first and second derivatives. Tangents are directions: pass Typst angles or nonzero vectors; vector magnitudes are ignored. `auto` uses the chord direction. Endpoint curvatures are signed, positive to the left of traversal. Speeds are positive derivative magnitudes, with `auto` using the chord length.],
+)
+
+A general single cubic cannot independently match both endpoint positions, both derivative vectors, and both curvatures. This constructor instead builds a $C^2$ piecewise cubic, meeting the endpoint constraints up to floating-point rounding. Endpoint tangential acceleration is set to zero. The curve is not necessarily free from loops, interior stationary points, or overshoot; endpoint constraints alone do not establish those properties. Coincident endpoints require explicit directions and speeds.
+
+For a $G^2$ continuation of an existing curve, use its end position, forward tangent, and signed curvature as the new start constraints. The example below additionally sets the start speed to the previous derivative magnitude, matching first derivatives as well. It does not generally match the previous full acceleration vector.
+
+```example-vertical
+let a = cs.spline-hermite((0, 0), (2, 1),
+  start-tangent: (2, 0), end-tangent: (2, 2))
+let b = cs.spline-transition(cs.spline-eval(a, 1), (5, 1),
+  start-tangent: cs.spline-tangent(a, 1),
+  start-curvature: cs.spline-curvature(a, 1),
+  start-speed: cetz.vector.len(cs.spline-derivative(a, 1)),
+  end-tangent: -20deg, end-curvature: 0)
+draw-curvature-comb(a, samples: 18, scale: 0.4,
+  stroke: 0.4pt + blue, envelope-stroke: none)
+draw-curvature-comb(b, samples: 30, scale: 0.4,
+  stroke: 0.4pt + orange, envelope-stroke: none)
+spline(a, stroke: 1.5pt + blue)
+spline(b, stroke: 1.5pt + orange)
+circle((2, 1), radius: 0.06, fill: black)
+content((2, 1), [G2 join], anchor: "south-east", padding: 0.15)
 ```
 
 == Analytical Evaluation
@@ -708,50 +776,7 @@ circle("c.pt-1", radius: 0.08, fill: orange)
 circle("c.pt-2", radius: 0.08, fill: orange)
 ```
 
-=== Parameter Space (`.t()`) vs Arc-Length Space (`.s()`)
-
-A fundamental distinction in differential geometry is the difference between *polynomial parameter space* $t in [0, 1]$ and *physical arc-length space* $s in [0, 1]$:
-
-- *Parameter Space (`"t(X%)"`)*: Evaluates the polynomial parameter $t = X / 100$. Because cubic segments vary in geometric size and knot spans, equal parameter steps do *not* cover equal physical distances. Points cluster tightly where knot spans are short and spread out on long segments.
-- *Arc-Length Space (`"s(X%)"`)*: Evaluates the numerical curve distance $s = (X / 100) dot L$ using 5-point Gauss-Legendre numerical quadrature with Newton-Raphson root inversion. Equal arc-length steps are physically equidistant along the curve.
-
-The example below demonstrates this divergence on an asymmetric spline. Instead of hardcoded coordinate offsets, labels are positioned cleanly using the curve's normal angle `cs.spline-normal-angle`, which automatically directs text perpendicular to the tangent at any point:
-
-```example-vertical
-let pts = ((0, 0), (1, 2.8), (2.2, 0.4), (7.5, 2.6))
-let sp = cs.spline-catmull(pts, alpha: 0.5)
-
-spline(sp, name: "asym", stroke: 2.2pt + rgb("#0f172a"))
-
-// Compare t(p%) and s(p%) for 20%, 40%, 60%, 80%
-for p in (20, 40, 60, 80) {
-  let t-val = p / 100.0
-  let t-anc = "asym.t(" + str(p) + "%)"
-  let s-anc = "asym.s(" + str(p) + "%)"
-
-  let n-ang-t = cs.spline-normal-angle(sp, t-val)
-  let t-at-s = cs.spline-t-for-distance(sp, t-val * cs.spline-arc-length(sp))
-  let n-ang-s = cs.spline-normal-angle(sp, t-at-s)
-
-  // Connecting drift chord
-  line(t-anc, s-anc, stroke: (paint: gray, thickness: 0.7pt, dash: "dashed"))
-
-  // Parameter marker (red) positioned along outer normal
-  circle(t-anc, radius: 0.09, fill: rgb("#e63946"))
-  content(t-anc, text(size: 6.5pt, fill: rgb("#e63946"), weight: "bold")[#str(p)% (t)], anchor: n-ang-t + 180deg, padding: 0.12)
-
-  // Arc-length marker (teal) positioned along inner normal
-  circle(s-anc, radius: 0.09, fill: rgb("#059669"))
-  content(s-anc, text(size: 6.5pt, fill: rgb("#059669"), weight: "bold")[#str(p)% (s)], anchor: n-ang-s, padding: 0.12)
-}
-
-// Legend
-rect((0.2, 4.4), (8.2, 3.5), stroke: 0.5pt + rgb("#cbd5e1"), fill: rgb("#fffffffa"), radius: 3pt)
-circle((0.6, 4.1), radius: 0.08, fill: rgb("#e63946"))
-content((0.9, 4.1), anchor: "west", text(size: 7pt)[.t(X%) - Polynomial parameter (clusters)])
-circle((0.6, 3.75), radius: 0.08, fill: rgb("#059669"))
-content((0.9, 3.75), anchor: "west", text(size: 7pt)[.s(X%) - Physical arc length (equidistant)])
-```
+The practical guide compares equal parameter and equal distance steps visually. Use `.t(X%)` for a fraction of the global parameter and `.s(X%)` for a numerical distance fraction. When placing a label at a distance anchor, compute its normal using `spline-label-anchor-at-distance` at the same absolute distance.
 
 #fn-doc(
   "draw.draw-tangents",
@@ -836,7 +861,6 @@ spline(sp, stroke: 2pt + black)
   [Draws directed deformation vector field arrows connecting curve A to curve B. Supports `mode: "arc-length"` (default: arrows distributed at equal physical curve distances) or `"segment"` (arrows distributed in parameter space).],
 )
 
-#pagebreak()
 == Control Handles and Low-Level Helpers
 
 `cs.draw.draw-control-polygon(sp, stroke: (paint: luma(160), thickness: 0.6pt, dash: "dashed"), pt-radius: 0.05, pt-fill: luma(120))` draws each cubic's endpoint handles and the original input polygon. For B-splines, the original polygon is not the same as the extracted cubic handles.
@@ -847,88 +871,39 @@ draw-control-polygon(sp, pt-radius: 0.06, pt-fill: orange)
 spline(sp, stroke: 1.5pt + blue)
 ```
 
-The root module also exports the following helpers. They primarily serve custom algorithms and spline construction; use the spline-level functions above for ordinary drawing.
+#pagebreak()
+=== Low-Level Reference
 
-#block(breakable: false)[
-`make-spline` \
-`is-spline` \
-`assert-spline` \
-Build a dictionary with keyword fields shown in the mathematical notes, test the package marker, or assert that marker. Custom segment validity is the caller's responsibility.
+These helpers support custom algorithms. All names are exported under `cs`. In the signatures below, `sp` is a spline, `ks` a knot vector, and `d` an absolute distance. Single-cubic evaluators share the arguments `(s, e, c1, c2, u)`, abbreviated as `..args` in these reference cards. `..options` denotes the named options described in the card.
+
+#let helper-card(title, signatures, description) = block(
+  breakable: false,
+  width: 100%,
+  inset: 9pt,
+  radius: 3pt,
+  stroke: 0.5pt + luma(200),
+  fill: rgb("#fafbfd"),
+)[
+  #text(font: "Liberation Sans", size: 9pt, weight: "bold", fill: rgb("#1a4971"))[#title]
+  #v(4pt)
+  #show raw: set text(font: "Liberation Mono", size: 7.4pt)
+  #raw(signatures, block: true)
+  #v(4pt)
+  #text(size: 8.6pt)[#description]
 ]
 
-#block(breakable: false)[
-`clean-point(pt)` \
-`clean-points(pts)` \
-Convert numeric coordinates to floating-point 2D tuples; extra coordinates are discarded.
-]
-
-#block(breakable: false)[
-`segment-count(sp)` \
-`get-segment(sp, idx)` \
-Read cubic count or a zero-based segment tuple.
-]
-
-#block(breakable: false)[
-`cubic-point` \
-`cubic-derivative` \
-`cubic-second-derivative` \
-Accept `(s, e, c1, c2, u)` and evaluate a single segment with local parameter `u`.
-]
-
-#block(breakable: false)[
-`cubic-tangent` \
-`cubic-normal` \
-`cubic-curvature` \
-The same five arguments; return a unit tangent, left normal, or signed curvature.
-]
-
-#block(breakable: false)[
-`cubic-tangent-angle` \
-`cubic-normal-angle` \
-The same five arguments; return a Typst angle.
-]
-
-#block(breakable: false)[
-`cubic-split(s, e, c1, c2, u)` \
-Return two CeTZ segment tuples meeting at local parameter `u`.
-]
-
-#block(breakable: false)[
-`segment-arc-length(s, e, c1, c2, u1: 0, u2: 1)` \
-Numerical oriented length of one segment interval.
-]
-
-#block(breakable: false)[
-`build-arc-length-lut` \
-`ensure-lut` \
-`with-lut` \
-Accept `(sp, samples-per-segment: 10)`; build a lookup table, retrieve an existing table or build one, or return a copy with the table attached. The sample count must be a positive integer.
-]
-
-#block(breakable: false)[
-`spline-normal-at-distance` \
-`spline-tangent-at-distance` \
-`spline-tangent-angle-at-distance` \
-Accept `(sp, distance)`; evaluate the left normal, unit tangent, or tangent angle at an absolute numerical distance.
-]
-
-#block(breakable: false)[
-`generate-clamped-knots(n, p)` \
-`generate-periodic-knots(n, p)` \
-Generate knots for `n` original points and degree `p`. Periodic evaluation additionally repeats the first `p` points.
-]
-
-#block(breakable: false)[
-`cox-de-boor(u, p, knots, pts)` \
-`cox-de-boor-derivative(u, p, knots, pts)` \
-Evaluate a B-spline or its derivative in the original knot domain, not the equal-segment global parameter.
-]
-
-#block(breakable: false)[
-`catmull-to-bezier-segments` \
-`bspline-to-bezier-segments` \
-Accept the corresponding constructor's arguments and return only the array of cubic tuples.
-]
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 10pt,
+  helper-card("Spline records", "make-spline(..fields)\nis-spline(value)\nassert-spline(value, name: \"spline\")", [Construct a record, test its package marker, or assert that marker. Field defaults are listed in the mathematical notes. Custom geometry is the caller's responsibility.]),
+  helper-card("Coordinates and segments", "clean-point(pt)\nclean-points(pts)\nsegment-count(sp)\nget-segment(sp, idx)", [Convert numeric points to 2D floating-point tuples, count segments, or retrieve a zero-based segment. Extra coordinates are discarded.]),
+  helper-card("Cubic position and derivatives", "cubic-point(..args)\ncubic-derivative(..args)\ncubic-second-derivative(..args)\ncubic-split(..args)", [Use the five shared cubic arguments above. The first three evaluate position, velocity, and acceleration. Splitting returns two cubic tuples meeting at `u`.]),
+  helper-card("Cubic tangent, normal, and curvature", "cubic-tangent(..args)\ncubic-normal(..args)\ncubic-curvature(..args)\ncubic-tangent-angle(..args)\ncubic-normal-angle(..args)", [Use the same five arguments. Return a unit tangent, oriented left normal, signed curvature, or the corresponding Typst angle.]),
+  helper-card("Arc length and cached tables", "segment-arc-length(s, e, c1, c2,\n  u1: 0, u2: 1)\nbuild-arc-length-lut(sp, ..options)\nensure-lut(sp, ..options)\nwith-lut(sp, ..options)", [Segment length is numerical and signed for reversed limits. Table helpers accept `samples-per-segment: 10`, a positive integer. They build a table, retrieve or build one, or attach it to a copy.]),
+  helper-card("Frames at an absolute distance", "spline-normal-at-distance(sp, d)\nspline-tangent-at-distance(sp, d)\nspline-tangent-angle-at-distance(sp, d)", [Evaluate the left normal, unit tangent, or tangent angle at distance `d`. Distance clamps to the curve's range. Normal and label angles are documented with the analytical API.]),
+  helper-card("Knot-domain tools", "generate-clamped-knots(n, p)\ngenerate-periodic-knots(n, p)\ncox-de-boor(u, p, ks, pts)\ncox-de-boor-derivative(u, p, ks, pts)", [Generate knots for `n` original points and degree `p`, or evaluate in the original knot domain. Periodic evaluation repeats the first `p` control points.]),
+  helper-card("Cubic extraction", "catmull-to-bezier-segments(pts,\n  ..constructor-options)\nbspline-to-bezier-segments(pts,\n  ..constructor-options)", [Accept the corresponding constructor's options and return the cubic tuple array instead of a spline record. Higher-degree B-splines retain the documented approximation limits.]),
+)
 
 #pagebreak()
 = Examples Gallery
@@ -1186,3 +1161,24 @@ B-splines of degree one through three convert to cubic segments exactly up to fl
 `cs.offset` approximates a normal offset by matching endpoint positions and scaled tangent handles. A single split may improve a segment with differing endpoint curvatures, but does not guarantee an error bound, remove intersections, or construct joins at corners. At distances near a curvature radius, the true offset can develop singularities. Use modest distances and inspect the result.
 
 The centripetal guarantee concerns individual regular segments with distinct consecutive points, not global intersections between different segments. Repeated points are handled numerically, but are outside that guarantee. See #link("https://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf")[Yuksel, Schaefer, and Keyser, _On the Parameterization of Catmull–Rom Curves_] for the precise result.
+
+#pagebreak()
+== Endpoint Constraints and Geometric Continuity
+
+For a cubic Hermite segment, prescribed positions $bold(P)_0$, $bold(P)_1$ and derivatives $bold(v)_0$, $bold(v)_1$ determine its poles:
+$ bold(B)_0 = bold(P)_0, quad bold(B)_1 = bold(P)_0 + bold(v)_0 / 3, quad bold(B)_2 = bold(P)_1 - bold(v)_1 / 3, quad bold(B)_3 = bold(P)_1. $
+After these constraints are fixed, its endpoint curvatures are consequences of the geometry, not independent parameters.
+
+For `spline-transition`, unit tangent $bold(T)$, speed $v$, and signed curvature $kappa$ specify the endpoint acceleration $bold(a) = kappa v^2 bold(N)$, with zero tangential component. The start and end position, velocity, and acceleration form six scalar constraints per coordinate. Three equal-duration cubic spans have just enough freedom to meet those constraints while matching position, velocity, and acceleration at their two internal joins.
+
+The implementation uses constant jerk vectors $bold(j)_0$, $bold(j)_1$, $bold(j)_2$ on intervals of duration $h = 1/3$. Define endpoint residuals:
+$ bold(A) = 3 (bold(a)_1 - bold(a)_0), $
+$ bold(V) = 18 (bold(v)_1 - bold(v)_0 - bold(a)_0), $
+$ bold(P) = 162 (bold(P)_1 - bold(P)_0 - bold(v)_0 - bold(a)_0 / 2). $
+Integrating the three spans gives the linear system:
+$ bold(j)_0 + bold(j)_1 + bold(j)_2 = bold(A), $
+$ 5 bold(j)_0 + 3 bold(j)_1 + bold(j)_2 = bold(V), $
+$ 19 bold(j)_0 + 7 bold(j)_1 + bold(j)_2 = bold(P). $
+Solving this system and integrating each constant jerk yields the stored cubic segments. There is no higher-degree-to-cubic approximation in this constructor.
+
+For regular planar curves with consistent traversal, $G^0$ means matching positions, $G^1$ adds matching unit tangents, and $G^2$ adds matching signed curvature. Parametric $C^1$ additionally requires equal derivative magnitudes; $C^2$ requires the full acceleration vectors to match. Matching curvature alone does not match its rate of change and does not imply $G^3$. The #link("https://engineeringtechnology.org/engineering-graphics/cad-siemens-nx/nx-surface-modeling/surface-continuity-g0-g1-g2-etc/")[NX continuity illustrations] offer a visual comparison of these geometric conditions; the constructions here apply to planar curves.

@@ -13,6 +13,8 @@
 
 ## Features
 
+- **Endpoint-Defined Curves**: Cubic Hermite interpolation from positions and derivatives, and curvature-controlled C2 piecewise cubic transitions for G2 joins.
+
 - **Centripetal & Chordal Catmull-Rom Splines ($\alpha = 0.5, 1.0$)**: Centripetal parameterization avoids cusps and self-intersections within regular individual segments; it does not prevent intersections between different segments.
 - **Second Derivatives & Signed Curvature Fields**: Acceleration $C''(u)$, oriented left unit normal field $\mathbf{N}(u)$, and signed curvature $\kappa(u) = \frac{x'y'' - y'x''}{(x'^2 + y'^2)^{3/2}}$.
 - **Arbitrary-Degree B-Splines**: Uniform and clamped B-splines via Cox-de Boor recursion with exact cubic Bézier decomposition for degrees up to three and cubic approximation for higher degrees.
@@ -79,6 +81,19 @@ Or for local development:
 ### Spline Constructors
 - `cs.spline-catmull(points, alpha: 0.5, closed: false, boundary: "clamped")`: Creates a generalized Catmull-Rom spline ($\alpha = 0.5$ centripetal, $\alpha = 0.0$ uniform, $\alpha = 1.0$ chordal).
 - `cs.spline-bspline(points, degree: 3, closed: false, knots: none)`: Creates an arbitrary-degree B-spline via Cox-de Boor recursion.
+
+### Endpoint-Based Construction
+- `cs.spline-hermite(start, end, start-tangent: auto, end-tangent: auto)`: One cubic matching endpoint positions and derivative vectors, including their magnitudes. Defaults use the endpoint displacement.
+- `cs.spline-transition(start, end, start-tangent: auto, end-tangent: auto, start-curvature: 0, end-curvature: 0, start-speed: auto, end-speed: auto)`: A C2 transition made of three cubic spans, matching endpoint directions, positive speeds, and signed curvatures. Directions accept angles or nonzero vectors; default directions and speeds come from the chord. This is a piecewise cubic, not a general single-cubic solution to all constraints.
+
+```typst
+let next = cs.spline-transition(cs.spline-eval(sp, 1), (7, 2),
+  start-tangent: cs.spline-tangent(sp, 1),
+  start-curvature: cs.spline-curvature(sp, 1),
+  end-tangent: 0deg, end-curvature: 0)
+```
+
+This matches position, tangent direction, and signed curvature (G2) at a regular join. Both endpoint directions point along traversal. Endpoint constraints do not guarantee a loop-free or stationary-point-free curve.
 
 ### Analytical Evaluation & Normal Angles
 - `cs.spline-eval(spline, t)`: Point on curve $C(t)$ for $t \in [0, 1]$.
