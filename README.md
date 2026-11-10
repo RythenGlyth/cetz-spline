@@ -133,6 +133,25 @@ This matches position, tangent direction, and signed curvature (G2) at a regular
 
 ---
 
+## Exact cubic subdivision
+
+`cs.subdivide-segment(segment, count)` splits a CeTZ cubic tuple `(start, end, control-1, control-2)` into `count` equal-parameter cubic pieces. It preserves the geometry up to floating-point rounding. The pieces need not have equal arc lengths. `count` must be a positive integer; `1` returns the original segment in a one-element array.
+
+Subdivision can establish correspondence before a segment-mode morph. For example, if source segments 3 through 6 correspond to target segment 3:
+
+```typst
+let matched = sp_c1
+matched.segments = (
+  ..sp_c1.segments.slice(0, 3),
+  ..cs.subdivide-segment(sp_c1.segments.at(3), 4),
+  ..sp_c1.segments.slice(4),
+)
+matched.lut = none // Invalidate any cached table after changing segments.
+cs.draw-homotopy(sp_c0, matched, steps: 3, mode: "segment")
+```
+
+This retains traversal order and the target shape while pairing corresponding outer arcs. Independent nearest-point matching cannot distinguish repeated occurrences of a shared base point reliably.
+
 ## Testing
 
 GitHub Actions discovers every stable Typst release at or above the manifest compiler minimum and runs the full suite on each version on pushes, pull requests, and manual dispatches. Prereleases are excluded.

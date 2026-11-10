@@ -66,6 +66,24 @@
   bezier.split(s, e, c1, c2, u)
 }
 
+/// Split a CeTZ cubic tuple `(s, e, c1, c2)` into `count` equal-parameter
+/// pieces, preserving its geometry up to floating-point rounding. The pieces
+/// have equal parameter widths, not necessarily equal physical lengths.
+/// `count` must be a positive integer; count=1 returns the original tuple.
+#let subdivide-segment(segment, count) = {
+  assert(type(segment) == array and segment.len() == 4,
+    message: "segment must be a cubic tuple (s, e, c1, c2)")
+  assert(type(count) == int and count >= 1, message: "count must be a positive integer")
+  let pieces = ()
+  let remaining = segment
+  for i in range(count - 1) {
+    let (piece, rest) = cubic-split(..remaining, 1 / (count - i))
+    pieces.push(piece)
+    remaining = rest
+  }
+  (..pieces, remaining)
+}
+
 /// Internal helper: map global parameter t in [0, 1] to (segment_index, local_u).
 #let _resolve-spline-t(spline, t) = {
   assert-spline(spline)

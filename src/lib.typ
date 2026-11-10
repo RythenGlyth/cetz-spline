@@ -22,6 +22,7 @@
   cubic-normal-angle,
   cubic-tangent-angle,
   cubic-split,
+  subdivide-segment,
   spline-eval,
   spline-derivative,
   spline-second-derivative,
