@@ -248,6 +248,7 @@ The following table summarizes the boundary between CeTZ core and `cetz-spline`:
   [*Arc-length quadrature*], [*cetz-spline*], [`cs.spline-arc-length`], [5-point Gauss-Legendre quadrature for exact curve length.],
   [*Arc-length inversion*], [*cetz-spline*], [`cs.spline-t-for-distance`], [Newton-Raphson solver for physical distance $s |-> t$.],
   [*Parallel offset curves*], [*cetz-spline*], [`cs.offset`], [Parallel normal offset with curvature-matched velocity.],
+  [*Affine transforms*], [*cetz-spline*], [`cs.rotate-spline`], [Rotation, translation, directional scaling, and mirroring/reflections.],
   [*Homotopy morphing*], [*cetz-spline*], [`cs.homotopy`], [Topological loop deformation and intermediate families.],
   [*Curvature combs*], [*cetz-spline*], [`cs.draw.draw-curvature-comb`], [CAD-style curvature needles with envelope spline.],
 )
@@ -523,6 +524,98 @@ let right = cs.offset(sp, -0.4)
 spline(left, stroke: 1.5pt + red)
 spline(sp, stroke: 1pt + black)
 spline(right, stroke: 1.5pt + blue)
+```
+
+#fn-doc(
+  "rotate-spline",
+  args: (
+    ("spline", "spline"),
+    ("angle", "angle, float"),
+    ("origin", "point", (0.0, 0.0)),
+  ),
+  ret: "spline",
+  [Rotates a spline rigidly by `angle` around an `origin` pivot point. Because Bézier curves are affine-invariant, all segment endpoints and control handles are transformed exactly without numerical approximation, preserving parameterization and arc lengths. Also aliased as `rotate`.],
+  parameters: (
+    ("spline", "spline", [Target spline dictionary.]),
+    ("angle", "angle, float", [Rotation angle (e.g. `45deg`, `-90deg`, or radians as float).]),
+    ("origin", "point", [Pivot point of rotation (default: `(0, 0)`).]),
+  ),
+)
+
+```example
+let sp = cs.spline-catmull(((0, 0), (1.5, 2), (3, 0.5), (4, 2)))
+let piv = (1.5, 2)
+
+spline(sp, stroke: 1.5pt + gray)
+circle(piv, radius: 0.1, fill: orange)
+
+for (i, a) in (30deg, 60deg, 90deg).enumerate() {
+  let rot = cs.rotate-spline(sp, a, origin: piv)
+  let clr = (blue, purple, red).at(i)
+  spline(rot, stroke: 1.2pt + clr)
+}
+```
+
+#fn-doc(
+  "translate-spline",
+  args: (
+    ("spline", "spline"),
+    ("offset", "point"),
+  ),
+  ret: "spline",
+  [Translates a spline rigidly by a 2D delta vector `offset = (dx, dy)`. Preserves arc lengths and lookup tables. Also aliased as `translate`.],
+  parameters: (
+    ("spline", "spline", [Target spline dictionary.]),
+    ("offset", "point", [Translation offset vector `(dx, dy)`.])
+  ),
+)
+
+#fn-doc(
+  "scale-spline",
+  args: (
+    ("spline", "spline"),
+    ("factor", "float, array"),
+    ("origin", "point", (0.0, 0.0)),
+    ("dir", "any", none),
+  ),
+  ret: "spline",
+  [Scales a spline relative to `origin`. Supports negative factors for reflections, as well as directional scaling along an arbitrary vector or angle `dir`. Resets the arc-length lookup table for automatic lazy rebuild. Also aliased as `scale`.],
+  parameters: (
+    ("spline", "spline", [Target spline dictionary.]),
+    ("factor", "float, array", [Scale factor. If `dir` is `none`, a float scales uniformly, or `(sx, sy)` scales along axes. If `dir` is specified, a float scales along `dir`, or `(su, sv)` scales along `dir` and its normal.]),
+    ("origin", "point", [Center point of scaling (default: `(0, 0)`).]),
+    ("dir", "str, array, angle, none", [Optional direction vector `(dx, dy)`, angle (e.g. `45deg`), or `"x"` / `"y"`. Default: `none`.])
+  ),
+)
+
+#fn-doc(
+  "mirror-spline",
+  args: (
+    ("spline", "spline"),
+    ("origin", "point", (0.0, 0.0)),
+    ("axis", "any", "x"),
+  ),
+  ret: "spline",
+  [Mirrors (reflects) a spline across a line passing through `origin` or performs point reflection. Also aliased as `mirror`.],
+  parameters: (
+    ("spline", "spline", [Target spline dictionary.]),
+    ("origin", "point", [Point that the reflection axis/center passes through (default: `(0, 0)`).]),
+    ("axis", "str, array, angle, none", [Reflection axis: `"x"` (horizontal line, flips $y$), `"y"` (vertical line, flips $x$), a direction vector `(dx, dy)`, an `angle` (e.g. `45deg`), or `none` for point reflection.]),
+  ),
+)
+
+```example
+let sp = cs.spline-catmull(((0.5, 0.5), (1.5, 2.5), (3, 1.5)))
+
+spline(sp, stroke: 2pt + blue)
+
+// Mirror across x-axis
+let mir-x = cs.mirror-spline(sp, axis: "x")
+spline(mir-x, stroke: 1.5pt + red)
+
+// Directional scale along (1, 1) direction
+let sc-dir = cs.scale-spline(sp, 1.6, origin: (0, 0), dir: (1, 1))
+spline(sc-dir, stroke: (paint: purple, thickness: 1.2pt, dash: "dashed"))
 ```
 
 == Canvas Drawing Functions

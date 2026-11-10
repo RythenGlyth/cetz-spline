@@ -80,6 +80,10 @@ Or for local development:
 - `cs.spline-point-at-distance(spline, s)`: Point at exact distance $s$.
 
 ### Transformations & Operations
+- `cs.rotate-spline(spline, angle, origin: (0, 0))`: Rigid rotation around a pivot point (`origin`).
+- `cs.translate-spline(spline, offset)`: Rigid translation by delta vector `(dx, dy)`.
+- `cs.scale-spline(spline, factor, origin: (0, 0), dir: none)`: Scaling relative to center, with negative factor and directional scaling support.
+- `cs.mirror-spline(spline, origin: (0, 0), axis: "x")`: Reflection across an axis line or point reflection.
 - `cs.resample(spline, count)`: Uniform physical arc-length point resampling.
 - `cs.homotopy(spline-a, spline-b, t)`: Intermediate curve at parameter $t \in [0, 1]$.
 - `cs.offset(spline, distance, subdivide: true)`: Parallel normal offset curve.

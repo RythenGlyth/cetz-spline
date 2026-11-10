@@ -56,6 +56,14 @@
   resample,
   homotopy,
   offset,
+  rotate-spline,
+  rotate,
+  translate-spline,
+  translate,
+  scale-spline,
+  scale,
+  mirror-spline,
+  mirror,
 )
 
 // Canvas drawing module

@@ -108,3 +108,52 @@
   draw-control-polygon(b-sp)
   spline(b-sp, stroke: 2pt + teal)
 })
+
+== Test 6: Spline Rotation Around Pivot
+
+#cetz.canvas({
+  import cetz.draw: *
+  import cs.draw: *
+
+  let pts = ((0.0, 0.0), (1.5, 2.0), (3.0, 1.0), (4.5, 2.5))
+  let base-sp = cs.spline-catmull(pts, alpha: 0.5)
+  let pivot = (1.5, 2.0)
+
+  // Draw pivot point
+  circle(pivot, radius: 0.12, fill: orange)
+
+  // Draw base curve
+  spline(base-sp, stroke: 1.5pt + gray)
+
+  // Draw rotated versions (30deg, 60deg, 90deg)
+  for (i, angle) in (30deg, 60deg, 90deg).enumerate() {
+    let rot-sp = cs.rotate-spline(base-sp, angle, origin: pivot)
+    let clr = (blue, purple, red).at(i)
+    spline(rot-sp, stroke: 1.2pt + clr)
+  }
+})
+
+== Test 7: Mirroring & Directional Scaling
+
+#cetz.canvas({
+  import cetz.draw: *
+  import cs.draw: *
+
+  let pts = ((0.5, 0.5), (1.5, 2.5), (3.0, 1.5))
+  let sp = cs.spline-catmull(pts, alpha: 0.5)
+
+  // Base curve
+  spline(sp, stroke: 2pt + blue)
+
+  // Mirrored across horizontal axis y = 0
+  let mir-h = cs.mirror-spline(sp, axis: "x")
+  spline(mir-h, stroke: 1.5pt + red)
+
+  // Mirrored across vertical axis x = 0
+  let mir-v = cs.mirror-spline(sp, axis: "y")
+  spline(mir-v, stroke: 1.5pt + green.darken(20%))
+
+  // Directional scale along (1, 1) direction
+  let sc-dir = cs.scale-spline(sp, 1.8, origin: (0.0, 0.0), dir: (1.0, 1.0))
+  spline(sc-dir, stroke: (paint: purple, thickness: 1.2pt, dash: "dashed"))
+})

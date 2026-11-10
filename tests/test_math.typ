@@ -98,3 +98,100 @@ Math tests passed!
   let pt-75 = spline-point-at-distance(sp, 7.5)
   assert(approx-eq(pt-75.at(0), 7.5, eps: 1e-3), message: "Point at distance 7.5 should have x ~ 7.5, got " + repr(pt-75))
 }
+
+// Test 5: Rotation and affine transforms
+#import "../src/core/ops.typ": (
+  rotate-spline,
+  rotate,
+  translate-spline,
+  scale-spline,
+  mirror-spline,
+  mirror,
+)
+
+#{
+  let pts = ((0.0, 0.0), (2.0, 0.0), (4.0, 0.0))
+  let sp = spline-catmull(pts, alpha: 0.5)
+
+  // 1. Rotate 90deg around origin (0, 0)
+  let rot-90 = rotate-spline(sp, 90deg, origin: (0.0, 0.0))
+  let p-start = spline-eval(rot-90, 0.0)
+  let p-mid = spline-eval(rot-90, 0.5)
+  let p-end = spline-eval(rot-90, 1.0)
+
+  assert(approx-eq(p-start.at(0), 0.0) and approx-eq(p-start.at(1), 0.0), message: "Start should be (0, 0)")
+  assert(approx-eq(p-mid.at(0), 0.0) and approx-eq(p-mid.at(1), 2.0), message: "Mid should be (0, 2), got " + repr(p-mid))
+  assert(approx-eq(p-end.at(0), 0.0) and approx-eq(p-end.at(1), 4.0), message: "End should be (0, 4), got " + repr(p-end))
+
+  // Arc length must be preserved under rotation
+  let l-orig = spline-arc-length(sp)
+  let l-rot = spline-arc-length(rot-90)
+  assert(approx-eq(l-orig, l-rot, eps: 1e-4), message: "Arc length must be invariant under rotation")
+
+  // 2. Rotate around non-origin pivot: rotate around midpoint (2, 0) by 90deg
+  let rot-pivot = rotate(sp, 90deg, origin: (2.0, 0.0))
+  let piv-start = spline-eval(rot-pivot, 0.0)
+  let piv-mid = spline-eval(rot-pivot, 0.5)
+  let piv-end = spline-eval(rot-pivot, 1.0)
+  assert(approx-eq(piv-start.at(0), 2.0) and approx-eq(piv-start.at(1), -2.0), message: "Pivot start should be (2, -2), got " + repr(piv-start))
+  assert(approx-eq(piv-mid.at(0), 2.0) and approx-eq(piv-mid.at(1), 0.0), message: "Pivot mid should be (2, 0)")
+  assert(approx-eq(piv-end.at(0), 2.0) and approx-eq(piv-end.at(1), 2.0), message: "Pivot end should be (2, 2), got " + repr(piv-end))
+
+  // 3. Translation
+  let trans = translate-spline(sp, (1.0, 3.0))
+  let tr-start = spline-eval(trans, 0.0)
+  let tr-end = spline-eval(trans, 1.0)
+  assert(approx-eq(tr-start.at(0), 1.0) and approx-eq(tr-start.at(1), 3.0))
+  assert(approx-eq(tr-end.at(0), 5.0) and approx-eq(tr-end.at(1), 3.0))
+
+  // 4. Scaling (uniform, non-uniform, negative)
+  let sc = scale-spline(sp, 2.0, origin: (0.0, 0.0))
+  let sc-end = spline-eval(sc, 1.0)
+  assert(approx-eq(sc-end.at(0), 8.0) and approx-eq(sc-end.at(1), 0.0))
+
+  // Negative scale: point reflection through (0, 0)
+  let sc-neg = scale-spline(sp, -1.0, origin: (0.0, 0.0))
+  let neg-end = spline-eval(sc-neg, 1.0)
+  assert(approx-eq(neg-end.at(0), -4.0) and approx-eq(neg-end.at(1), 0.0))
+
+  // 5. Directional scaling: scale in direction (1, 1) by factor 3.0
+  // Curve points (0,0), (2,0), (4,0).
+  // At (2,0): d = (2,0). u = (1/sqrt(2), 1/sqrt(2)), v = (-1/sqrt(2), 1/sqrt(2))
+  // du = 2/sqrt(2) = sqrt(2). dv = -sqrt(2)
+  // Scaled d': su*du*u + sv*dv*v = 3 * sqrt(2) * (1/sqrt(2), 1/sqrt(2)) + 1 * (-sqrt(2)) * (-1/sqrt(2), 1/sqrt(2))
+  //           = (3, 3) + (1, -1) = (4, 2)
+  let sc-dir = scale-spline(sp, 3.0, origin: (0.0, 0.0), dir: (1.0, 1.0))
+  let p-dir-mid = spline-eval(sc-dir, 0.5)
+  assert(approx-eq(p-dir-mid.at(0), 4.0, eps: 1e-4) and approx-eq(p-dir-mid.at(1), 2.0, eps: 1e-4),
+    message: "Directional scale mid should be (4, 2), got " + repr(p-dir-mid))
+
+  // 6. Mirroring
+  let pts2 = ((1.0, 1.0), (2.0, 3.0), (3.0, 2.0))
+  let sp2 = spline-catmull(pts2, alpha: 0.5)
+
+  // Mirror across x-axis through (0,0) -> y negated
+  let mir-x = mirror-spline(sp2, axis: "x")
+  let mx-start = spline-eval(mir-x, 0.0)
+  assert(approx-eq(mx-start.at(0), 1.0) and approx-eq(mx-start.at(1), -1.0),
+    message: "Mirror-x should negate y: got " + repr(mx-start))
+
+  // Mirror across y-axis through (0,0) -> x negated
+  let mir-y = mirror-spline(sp2, axis: "y")
+  let my-start = spline-eval(mir-y, 0.0)
+  assert(approx-eq(my-start.at(0), -1.0) and approx-eq(my-start.at(1), 1.0),
+    message: "Mirror-y should negate x: got " + repr(my-start))
+
+  // Mirror across diagonal 45deg line y = x through (0,0) -> swaps x and y
+  let mir-diag = mirror-spline(sp2, axis: 45deg)
+  let md-start = spline-eval(mir-diag, 0.0)
+  assert(approx-eq(md-start.at(0), 1.0) and approx-eq(md-start.at(1), 1.0))
+  let md-mid = spline-eval(mir-diag, 0.5)
+  let orig-mid = spline-eval(sp2, 0.5)
+  assert(approx-eq(md-mid.at(0), orig-mid.at(1), eps: 1e-4) and approx-eq(md-mid.at(1), orig-mid.at(0), eps: 1e-4),
+    message: "Mirror across 45deg should swap x and y")
+
+  // Point reflection through (1, 1):
+  let mir-pt = mirror-spline(sp2, origin: (1.0, 1.0), axis: none)
+  let mp-start = spline-eval(mir-pt, 0.0)
+  assert(approx-eq(mp-start.at(0), 1.0) and approx-eq(mp-start.at(1), 1.0))
+}

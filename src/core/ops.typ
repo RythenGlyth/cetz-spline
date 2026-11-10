@@ -2,7 +2,7 @@
 // Advanced geometric spline operations: resampling, homotopies, and parallel offset curves.
 
 #import "@preview/cetz:0.5.3": vector
-#import "types.typ": assert-spline, make-spline
+#import "types.typ": assert-spline, make-spline, clean-point
 #import "bezier.typ": (
   cubic-point,
   cubic-derivative,
@@ -181,3 +181,193 @@
     segments: offset-segments,
   )
 }
+
+/// Helper: rotate a 2D point around an origin by an angle.
+#let _rotate-pt(pt, angle, origin: (0.0, 0.0)) = {
+  let rad = if type(angle) == std.angle { angle.rad() } else { float(angle) }
+  let cos-a = calc.cos(rad)
+  let sin-a = calc.sin(rad)
+  let (ox, oy) = clean-point(origin)
+  let dx = float(pt.at(0)) - ox
+  let dy = float(pt.at(1)) - oy
+  (
+    ox + dx * cos-a - dy * sin-a,
+    oy + dx * sin-a + dy * cos-a,
+  )
+}
+
+/// Rotate a spline around an origin point by a given angle.
+///
+/// Bézier curves are affine-invariant, so rotating all segment endpoints and
+/// control handles transforms the curve geometry exactly without approximation.
+/// Arc-length is preserved under rigid rotation.
+///
+/// - spline (spline): Target spline dictionary
+/// - angle (angle, float): Rotation angle (e.g. `90deg`, `-45deg`, or radians as float)
+/// - origin (point): Pivot point of rotation (default: `(0, 0)`)
+/// -> rotated spline object
+#let rotate-spline(spline, angle, origin: (0.0, 0.0)) = {
+  assert-spline(spline)
+  let orig = clean-point(origin)
+  let rot(p) = _rotate-pt(p, angle, origin: orig)
+
+  let rotated-segs = spline.segments.map(seg => {
+    let (s, e, c1, c2) = seg
+    (rot(s), rot(e), rot(c1), rot(c2))
+  })
+
+  let rotated-pts = spline.pts.map(rot)
+
+  make-spline(
+    type: spline.type,
+    pts: rotated-pts,
+    closed: spline.closed,
+    meta: spline.meta,
+    segments: rotated-segs,
+    lut: spline.lut,
+  )
+}
+#let rotate = rotate-spline
+
+/// Translate a spline by a 2D delta offset `(dx, dy)`.
+///
+/// - spline (spline): Target spline dictionary
+/// - offset (point): Translation offset `(dx, dy)`
+/// -> translated spline object
+#let translate-spline(spline, offset) = {
+  assert-spline(spline)
+  let (dx, dy) = clean-point(offset)
+  let shift(p) = (float(p.at(0)) + dx, float(p.at(1)) + dy)
+
+  let translated-segs = spline.segments.map(seg => {
+    let (s, e, c1, c2) = seg
+    (shift(s), shift(e), shift(c1), shift(c2))
+  })
+
+  let translated-pts = spline.pts.map(shift)
+
+  make-spline(
+    type: spline.type,
+    pts: translated-pts,
+    closed: spline.closed,
+    meta: spline.meta,
+    segments: translated-segs,
+    lut: spline.lut,
+  )
+}
+#let translate = translate-spline
+
+/// Helper: parse an angle, array, or string into a normalized 2D direction unit vector.
+#let _parse-dir(d) = {
+  if d == none {
+    return none
+  }
+  if type(d) == std.angle {
+    let rad = d.rad()
+    return (calc.cos(rad), calc.sin(rad))
+  }
+  if type(d) == str {
+    if d == "x" or d == "horizontal" {
+      return (1.0, 0.0)
+    } else if d == "y" or d == "vertical" {
+      return (0.0, 1.0)
+    } else {
+      assert(false, message: "Invalid direction string: expected 'x', 'y', 'horizontal', or 'vertical', got " + repr(d))
+    }
+  }
+  if type(d) == array and d.len() >= 2 {
+    let vx = float(d.at(0))
+    let vy = float(d.at(1))
+    let len = calc.sqrt(vx * vx + vy * vy)
+    assert(len > 1e-12, message: "Direction vector cannot have zero length")
+    return (vx / len, vy / len)
+  }
+  assert(false, message: "Invalid direction: expected array (dx, dy), angle, or str ('x', 'y'), got " + repr(d))
+}
+
+/// Scale a spline relative to a center point, optionally along an arbitrary direction.
+///
+/// Supports negative factors for reflections, as well as directional scaling along
+/// an arbitrary vector or angle.
+///
+/// - spline (spline): Target spline dictionary
+/// - factor (float, array): Scale factor.
+///   - If `dir` is none: a single float scales uniformly; an array `(sx, sy)` scales along Cartesian axes.
+///   - If `dir` is specified: a single float scales along `dir` (leaving the perpendicular unchanged); an array `(su, sv)` scales along `dir` and its normal.
+/// - origin (point): Scaling origin pivot point (default: `(0, 0)`)
+/// - dir (str, array, angle, none): Optional direction vector `(dx, dy)`, angle (e.g. `45deg`), or `"x"` / `"y"`.
+/// -> scaled spline object
+#let scale-spline(spline, factor, origin: (0.0, 0.0), dir: none) = {
+  assert-spline(spline)
+  let (ox, oy) = clean-point(origin)
+  let dir-vec = _parse-dir(dir)
+
+  let sc = if dir-vec == none {
+    let (sx, sy) = if type(factor) == array {
+      (float(factor.at(0)), float(factor.at(1)))
+    } else {
+      (float(factor), float(factor))
+    }
+    (p) => (
+      ox + (float(p.at(0)) - ox) * sx,
+      oy + (float(p.at(1)) - oy) * sy,
+    )
+  } else {
+    let (ux, uy) = dir-vec
+    let (vx, vy) = (-uy, ux)
+    let (su, sv) = if type(factor) == array {
+      (float(factor.at(0)), float(factor.at(1)))
+    } else {
+      (float(factor), 1.0)
+    }
+    (p) => {
+      let dx = float(p.at(0)) - ox
+      let dy = float(p.at(1)) - oy
+      let du = dx * ux + dy * uy
+      let dv = dx * vx + dy * vy
+      (
+        ox + su * du * ux + sv * dv * vx,
+        oy + su * du * uy + sv * dv * vy,
+      )
+    }
+  }
+
+  let scaled-segs = spline.segments.map(seg => {
+    let (s, e, c1, c2) = seg
+    (sc(s), sc(e), sc(c1), sc(c2))
+  })
+
+  let scaled-pts = spline.pts.map(sc)
+
+  make-spline(
+    type: spline.type,
+    pts: scaled-pts,
+    closed: spline.closed,
+    meta: spline.meta,
+    segments: scaled-segs,
+    lut: none,
+  )
+}
+#let scale = scale-spline
+
+/// Mirror (reflect) a spline across a line or through a point.
+///
+/// - spline (spline): Target spline dictionary
+/// - origin (point): Point that the reflection axis/center passes through (default: `(0, 0)`)
+/// - axis (str, array, angle, none): Reflection axis:
+///   - `"x"`: horizontal line through `origin` (flips y-coordinates)
+///   - `"y"`: vertical line through `origin` (flips x-coordinates)
+///   - direction vector `(dx, dy)` or `angle`: reflection across line along this direction
+///   - `none`: point reflection through `origin` (inverts both coordinates)
+/// -> mirrored spline object
+#let mirror-spline(spline, origin: (0.0, 0.0), axis: "x") = {
+  assert-spline(spline)
+  if axis == none {
+    // Point reflection through origin: scale by -1
+    return scale-spline(spline, -1.0, origin: origin)
+  }
+  let dir-vec = _parse-dir(axis)
+  // Reflection across a line with direction u preserves u and inverts normal v:
+  scale-spline(spline, (1.0, -1.0), origin: origin, dir: dir-vec)
+}
+#let mirror = mirror-spline
