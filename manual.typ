@@ -920,6 +920,49 @@ These helpers support custom algorithms. All names are exported under `cs`. In t
 #pagebreak()
 = Examples Gallery
 
+== Opening a Seam with Fixed Outer Arcs
+
+Blue dots mark the cuts. The source arcs outside them stay unchanged. A curvature-matched bridge replaces the detour between them. Place cuts away from sharp peaks, otherwise the bridge inherits their tight curvature.
+
+Gray shows the two-lobed source; purple shows the morph into a single loop. Black marks the shared base point. Only the final bridge is guaranteed to be $G^2$.
+
+```example-vertical
+let pts = (
+  (0, -0.7), (0.9, -0.5), (1.1, 0.5), (0.8, 1.05), (0.2, 0.2),
+  (0, -0.7),
+  (-0.2, 0.2), (-0.8, 1.25), (-1.1, 0.5), (-0.6, -0.3), (0, -0.7),
+)
+let source = cs.spline-catmull(pts)
+// Cut inside the shoulders, before the high-curvature peaks.
+let (left, cut-left) = cs.cubic-split(..source.segments.at(2), 0.7)
+let (cut-right, right) = cs.cubic-split(..source.segments.at(7), 0.2)
+let prefix = (..source.segments.slice(0, 2), left)
+let suffix = (right, ..source.segments.slice(8))
+let bridge = cs.spline-transition(left.at(1), right.at(0),
+  start-tangent: cs.cubic-tangent(..left, 1),
+  end-tangent: cs.cubic-tangent(..right, 0),
+  start-curvature: cs.cubic-curvature(..left, 1),
+  end-curvature: cs.cubic-curvature(..right, 0))
+// Six removed pieces correspond to six pieces of the bridge.
+let removed = (cut-left, ..source.segments.slice(3, 7), cut-right)
+let refined = bridge.segments.map(s => cs.subdivide-segment(s, 2)).join()
+let a = cs.make-spline(segments: (..prefix, ..removed, ..suffix))
+let b = cs.make-spline(segments: (..prefix, ..refined, ..suffix))
+for (i, t) in (0, 0.25, 0.5, 0.75, 1).enumerate() {
+  scope({
+    translate((i * 2.6, 0))
+    content((0, 1.65), [t = #t])
+    spline(source, stroke: 0.4pt + luma(210))
+    spline(cs.homotopy(a, b, t, mode: "segment"),
+    stroke: 1pt + rgb("#92215e"))
+    circle(pts.first(), radius: 0.065, fill: black, stroke: none)
+    circle(left.at(1), radius: 0.055, fill: blue, stroke: none)
+    circle(right.at(0), radius: 0.055, fill: blue, stroke: none)
+  })
+}
+```
+
+#pagebreak()
 == Aerodynamic Airfoil Profile & Curvature Comb
 
 An illustrative airfoil outline, rather than a physical flow model. The comb shows where geometric curvature changes abruptly or becomes large; it does not calculate pressure or aerodynamic acceleration. Try reducing `scale` if the needles obscure the profile.
