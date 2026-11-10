@@ -133,7 +133,7 @@
     for j in range(tip-pts.len() - 1, -1, step: -1) {
       poly-pts.push(tip-pts.at(j))
     }
-    polygon(..poly-pts, fill: fill, stroke: none)
+    line(..poly-pts, close: true, fill: fill, stroke: none)
   }
 
   // Draw envelope curve connecting needle tips
