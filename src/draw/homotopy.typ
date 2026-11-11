@@ -21,6 +21,7 @@
   stroke-fn: (t) => 0.8pt + rgb(int(255 * (1 - t)), 0, int(255 * t)),
   mode: "auto",
   samples: auto,
+  ..style
 ) = {
   assert-spline(spline-a, name: "spline-a")
   assert-spline(spline-b, name: "spline-b")
@@ -31,7 +32,7 @@
     let t = float(i) / float(n)
     let intermediate = homotopy(spline-a, spline-b, t, mode: mode, samples: samples)
     let stk = stroke-fn(t)
-    spline(intermediate, stroke: stk)
+    spline(intermediate, stroke: stk, ..style.named())
   }
 }
 
