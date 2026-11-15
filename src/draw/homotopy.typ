@@ -27,8 +27,8 @@
   assert-spline(spline-b, name: "spline-b")
 
   assert(type(steps) == int and steps >= 1, message: "steps must be a positive integer")
-  let n = steps
-  for i in range(0, n + 1) {
+  let n = steps + 1
+  for i in range(1, n) {
     let t = float(i) / float(n)
     let intermediate = homotopy(spline-a, spline-b, t, mode: mode, samples: samples)
     let stk = stroke-fn(t)
